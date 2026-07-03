@@ -30,14 +30,37 @@ export function composeScene(options: {
   assetPath: string;        // Path to background image or video
   assetType: string;        // "STOCK_VIDEO" or "STOCK_IMAGE"
   audioPath: string;        // Path to voiceover .mp3
-  subtitleText: string;     // On-screen caption text
+  subtitles: { text: string; startTime: number; endTime: number }[]; // Subtitle chunks
   audioDuration: number;    // Duration in seconds
   outputPath: string;       // Where to save the scene clip
 }): Promise<void> {
-  const { assetPath, assetType, audioPath, subtitleText, audioDuration, outputPath } = options;
+  const { assetPath, assetType, audioPath, subtitles, audioDuration, outputPath } = options;
 
   return new Promise((resolve, reject) => {
     const command = ffmpeg();
+    
+    // Generate the chained drawtext filters for subtitles
+    // We map each subtitle chunk to a drawtext filter with 'enable=between(...)'
+    // so they only appear at the correct timestamps.
+    let textFilters = "";
+    
+    if (subtitles && subtitles.length > 0) {
+      const filters = subtitles.map((sub, index) => {
+        const escapedText = escapeFfmpegText(sub.text);
+        const drawText = `drawtext=text='${escapedText}':fontsize=48:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-h/4:font=Arial:enable='between(t,${sub.startTime},${sub.endTime})'`;
+        return drawText;
+      });
+      // Chain them together: [bg]drawtext...[t0];[t0]drawtext...[t1]; etc.
+      let chain = `[bg]${filters[0]}[t0]`;
+      for (let i = 1; i < filters.length; i++) {
+        chain += `;[t${i-1}]${filters[i]}[t${i}]`;
+      }
+      // The final output of the text chain is the last label
+      chain += `;[t${filters.length - 1}]copy[outv]`;
+      textFilters = chain;
+    } else {
+      textFilters = `[bg]copy[outv]`;
+    }
 
     if (assetType === "STOCK_VIDEO") {
       // Video asset: scale to fill 1080x1920, loop if shorter than audio
@@ -50,8 +73,8 @@ export function composeScene(options: {
         .complexFilter([
           // Scale, crop to 1080x1920, and force 30fps for smooth video
           `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30[bg]`,
-          // Draw subtitle text
-          `[bg]drawtext=text='${escapeFfmpegText(subtitleText)}':fontsize=48:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-h/4:font=Arial[outv]`,
+          // Draw subtitles using the chain built above
+          textFilters,
           // Smooth audio fade in/out to remove harsh audio cuts
           `[1:a]afade=t=in:st=0:d=0.1,afade=t=out:st=${Math.max(0, audioDuration - 0.2)}:d=0.2[outa]`
         ])
@@ -80,8 +103,8 @@ export function composeScene(options: {
         .complexFilter([
           // Scale, crop to 1080x1920, and force 30fps
           `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30[bg]`,
-          // Draw subtitle text
-          `[bg]drawtext=text='${escapeFfmpegText(subtitleText)}':fontsize=48:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-h/4:font=Arial[outv]`,
+          // Draw subtitles using the chain
+          textFilters,
           // Smooth audio fade in/out
           `[1:a]afade=t=in:st=0:d=0.1,afade=t=out:st=${Math.max(0, audioDuration - 0.2)}:d=0.2[outa]`
         ])

@@ -23,7 +23,8 @@ import type { Script } from "@prisma/client";
 export async function generateScript(
   projectId: string,
   niche: string,
-  tone: string
+  tone: string,
+  targetDuration: string
 ): Promise<ServiceResult<Script>> {
   try {
     // 1. Mark as in-progress
@@ -37,8 +38,16 @@ export async function generateScript(
       where: { projectId },
     });
 
-    // 3. Build prompt and call Gemini
-    const prompt = buildScriptPrompt(niche, tone);
+    // 3. Fetch recent topics to prevent idea duplication
+    const recentProjects = await prisma.project.findMany({
+      where: { status: { not: "FAILED" } },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    });
+    const recentTopics = recentProjects.map(p => p.title).join(", ");
+
+    // 4. Build prompt and call Gemini
+    const prompt = buildScriptPrompt(niche, tone, targetDuration, recentTopics);
     const rawData = await generateStructuredContent(prompt);
 
     // 4. Validate with Zod — replaces the old manual validateAIResponse()

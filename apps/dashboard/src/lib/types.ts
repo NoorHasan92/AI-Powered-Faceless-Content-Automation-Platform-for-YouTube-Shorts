@@ -20,6 +20,8 @@ export interface CreateProjectInput {
   title: string;
   niche: string;
   tone: string;
+  targetDuration: string;
+  voice: string;
 }
 
 // ---------------------------------------------------------------------------

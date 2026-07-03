@@ -53,6 +53,8 @@ export async function createProject(
         title: input.title,
         niche: input.niche,
         tone: input.tone,
+        targetDuration: input.targetDuration,
+        voice: input.voice,
       },
     });
     return { success: true, data: project };

@@ -34,7 +34,7 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
   }
 
   // Pre-bind server actions
-  const triggerScriptAgent = generateScriptAction.bind(null, project.id, project.niche, project.tone);
+  const triggerScriptAgent = generateScriptAction.bind(null, project.id, project.niche, project.tone, project.targetDuration);
   const triggerVideoAgent = triggerExportAction.bind(null, project.id);
   const triggerVoiceoverAgent = generateVoiceoverAction.bind(null, project.id);
   const triggerAssetAgent = generateAssetsAction.bind(null, project.id);
@@ -53,7 +53,7 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
           <div>
             <h1 className="text-3xl font-bold text-slate-900">{project.title}</h1>
             <p className="text-slate-500 mt-1 capitalize">
-              Niche: {project.niche} • Tone: {project.tone}
+              Niche: {project.niche} • Tone: {project.tone} • Length: {project.targetDuration} • Voice: {project.voice.split("-")[2].replace("MultilingualNeural", "")}
             </p>
           </div>
           <div className="flex items-center gap-3">

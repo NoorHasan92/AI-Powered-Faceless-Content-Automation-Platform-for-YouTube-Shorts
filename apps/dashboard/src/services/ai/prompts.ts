@@ -8,13 +8,18 @@ import { AI_DEFAULTS } from "@/lib/constants";
  * Builds the script generation prompt for Gemini.
  * The output shape must match scriptResponseSchema in validations/script.schema.ts.
  */
-export function buildScriptPrompt(niche: string, tone: string): string {
+export function buildScriptPrompt(niche: string, tone: string, targetDuration: string, recentTopics: string = ""): string {
+  const avoidanceRule = recentTopics 
+    ? `- IMPORTANT: Do NOT generate ideas, facts, or scripts related to any of these recently generated topics: ${recentTopics}. Pick a completely different idea.`
+    : "";
+
   return `
 You are an expert short-form video scriptwriter and director.
 Create a highly engaging, viral-style script for a YouTube Short.
 
 Topic/Niche: ${niche}
 Tone: ${tone}
+Target Duration: ${targetDuration}
 
 You must return ONLY a raw JSON object matching this exact structure:
 {
@@ -36,10 +41,12 @@ You must return ONLY a raw JSON object matching this exact structure:
 }
 
 Rules:
-- Create exactly ${AI_DEFAULTS.minScenes} to ${AI_DEFAULTS.maxScenes} scenes.
+${avoidanceRule}
+- IMPORTANT: The sum of all scene \`duration\` values MUST closely match the Target Duration (${targetDuration}). 
+- Do NOT hardcode the scene count. Scale the number of scenes up or down dynamically to fit the Target Duration perfectly (e.g. longer durations require more scenes, shorter durations require fewer scenes).
 - Ensure the visualPrompts are highly descriptive for an AI image/video generator.
-- The duration should be an estimated time in seconds to speak the narration.
-- estimatedDuration should be the sum of all scene durations.
-- searchKeywords should be 2-4 relevant terms for finding stock footage or images.
+- The \`duration\` should be an estimated time in seconds to speak the narration text for that specific scene.
+- \`estimatedDuration\` should be the mathematical sum of all scene durations.
+- \`searchKeywords\` should be 2-4 relevant terms for finding stock footage or images.
 `.trim();
 }

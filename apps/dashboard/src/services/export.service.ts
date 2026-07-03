@@ -91,7 +91,11 @@ export async function triggerExport(
         assetPath: asset.localPath!,
         assetType: asset.type,
         audioPath: voiceover.localPath!,
-        subtitleText: captionText,
+        subtitles: scene.subtitles.map(s => ({
+          text: s.text,
+          startTime: s.startTime || 0,
+          endTime: s.endTime || 5,
+        })),
         audioDuration: voiceover.duration || scene.duration || 5,
         outputPath: sceneOutputPath,
       });

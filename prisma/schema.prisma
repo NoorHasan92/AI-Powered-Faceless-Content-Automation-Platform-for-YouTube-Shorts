@@ -52,6 +52,8 @@ model Project {
   title       String
   niche       String        // e.g., "science", "finance", "animals"
   tone        String        @default("educational")
+  targetDuration String     @default("30-50 Seconds")
+  voice       String        @default("en-US-AvaMultilingualNeural")
   status      ProjectStatus @default(DRAFT)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt

@@ -36,18 +36,20 @@ export async function generateSubtitles(projectId: string): Promise<ServiceResul
     
     script.scenes.forEach(scene => {
       // Split narration into chunks of ~4-6 words each for punchy captions
-      const words = scene.narrationText.split(" ");
+      const words = scene.narrationText.split(" ").filter(w => w.trim().length > 0);
       let currentChunk: string[] = [];
       let startTime = 0.0;
       
-      const wordsPerSec = 2.5; // matching voiceover speed
+      const totalWords = words.length;
+      const actualDuration = scene.duration || (totalWords / 2.5);
+      const exactDurationPerWord = actualDuration / totalWords;
 
       words.forEach((word, index) => {
         currentChunk.push(word);
         
-        // Break chunk on punctuation or when it hits 5 words
-        if (word.match(/[.,!?]$/) || currentChunk.length >= 5 || index === words.length - 1) {
-          const chunkDuration = currentChunk.length / wordsPerSec;
+        // Break chunk on punctuation or when it hits 4 words
+        if (word.match(/[.,!?]$/) || currentChunk.length >= 4 || index === words.length - 1) {
+          const chunkDuration = currentChunk.length * exactDurationPerWord;
           
           chunks.push({
             sceneId: scene.id,

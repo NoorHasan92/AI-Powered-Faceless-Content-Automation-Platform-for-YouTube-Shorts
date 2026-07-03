@@ -14,8 +14,9 @@ import { generateScript } from "@/services/script.service";
 export async function generateScriptAction(
   projectId: string,
   niche: string,
-  tone: string
+  tone: string,
+  targetDuration: string
 ) {
-  await generateScript(projectId, niche, tone);
+  await generateScript(projectId, niche, tone, targetDuration);
   revalidatePath(`/projects/${projectId}`);
 }

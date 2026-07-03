@@ -10,9 +10,6 @@ import fs from "fs";
 import path from "path";
 import { getAudioDir, toPublicUrl } from "@/lib/audio-utils";
 
-// Voice selection — high-quality multilingual voice
-const TTS_VOICE = "en-US-AvaMultilingualNeural";
-
 /**
  * Calculate MP3 duration from file size.
  * At 96kbps CBR mono MP3: duration = fileSize / (96000 / 8) = fileSize / 12000
@@ -37,12 +34,14 @@ export async function generateVoiceovers(projectId: string): Promise<ServiceResu
     // 1. Get the script and scenes
     const script = await prisma.script.findUnique({
       where: { projectId },
-      include: { scenes: true },
+      include: { scenes: true, project: true },
     });
 
     if (!script || script.scenes.length === 0) {
       throw new Error("No script or scenes found to generate voiceovers for.");
     }
+    
+    const ttsVoice = script.project.voice || "en-US-AvaMultilingualNeural";
 
     // 2. Mark project status
     await prisma.project.update({
@@ -71,7 +70,7 @@ export async function generateVoiceovers(projectId: string): Promise<ServiceResu
 
       // Initialize TTS client (one per scene to avoid websocket issues)
       const tts = new MsEdgeTTS();
-      await tts.setMetadata(TTS_VOICE, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
+      await tts.setMetadata(ttsVoice, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
 
       // Generate the audio file
       const result = await tts.toFile(sceneDir, scene.narrationText);
@@ -88,7 +87,7 @@ export async function generateVoiceovers(projectId: string): Promise<ServiceResu
         data: {
           sceneId: scene.id,
           provider: "msedge-tts",
-          voiceId: TTS_VOICE,
+          voiceId: ttsVoice,
           audioUrl: publicUrl,
           localPath: audioFilePath,
           duration,

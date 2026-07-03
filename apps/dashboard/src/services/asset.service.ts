@@ -61,12 +61,15 @@ async function findPexelsAsset(keywords: string[]): Promise<{
   try {
     const videoResult = await pexelsClient.videos.search({
       query,
-      per_page: 3,
+      per_page: 15,
       orientation: "portrait",
     });
 
     if (!isPexelsError(videoResult) && videoResult.videos.length > 0) {
-      const video = videoResult.videos[0];
+      // Pick a random video from the results to prevent repeating the same clip
+      const randomIndex = Math.floor(Math.random() * videoResult.videos.length);
+      const video = videoResult.videos[randomIndex];
+      
       // Find the best quality file that's reasonable size (HD, not 4K)
       const videoFile = video.video_files
         .filter(f => f.width && f.width <= 1920)
@@ -89,12 +92,14 @@ async function findPexelsAsset(keywords: string[]): Promise<{
   try {
     const photoResult = await pexelsClient.photos.search({
       query,
-      per_page: 3,
+      per_page: 15,
       orientation: "portrait",
     });
 
     if (!isPexelsError(photoResult) && photoResult.photos.length > 0) {
-      const photo = photoResult.photos[0];
+      // Pick a random photo
+      const randomIndex = Math.floor(Math.random() * photoResult.photos.length);
+      const photo = photoResult.photos[randomIndex];
       return {
         downloadUrl: photo.src.large2x || photo.src.large,
         sourceUrl: photo.url,

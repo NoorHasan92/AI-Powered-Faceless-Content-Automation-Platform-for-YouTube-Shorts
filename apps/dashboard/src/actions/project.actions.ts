@@ -36,6 +36,8 @@ export async function createProjectAction(formData: FormData) {
     title: formData.get("title"),
     niche: formData.get("niche"),
     tone: formData.get("tone"),
+    targetDuration: formData.get("targetDuration"),
+    voice: formData.get("voice"),
   };
 
   // Validate with Zod
@@ -44,6 +46,9 @@ export async function createProjectAction(formData: FormData) {
     return; // Silently reject invalid input (form has client-side `required` too)
   }
 
-  await createProject(parsed.data);
-  revalidatePath("/projects");
+  const result = await createProject(parsed.data);
+  if (result.success && result.data) {
+    revalidatePath("/projects");
+    redirect(`/projects/${result.data.id}`);
+  }
 }

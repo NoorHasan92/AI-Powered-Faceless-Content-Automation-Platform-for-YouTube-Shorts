@@ -45,16 +45,6 @@ export default async function SettingsPage() {
       ],
     },
     {
-      title: "Pipeline Defaults",
-      description: "Set default values for new project pipelines.",
-      icon: Sliders,
-      items: [
-        { label: "Default Niche", status: "Science", statusColor: "text-blue-600 bg-blue-50" },
-        { label: "Default Tone", status: "Educational", statusColor: "text-blue-600 bg-blue-50" },
-        { label: "Scene Count Range", status: "4–6 scenes", statusColor: "text-blue-600 bg-blue-50" },
-      ],
-    },
-    {
       title: "YouTube Integration",
       description: "Connect your YouTube channel for automated publishing.",
       icon: MonitorPlay,

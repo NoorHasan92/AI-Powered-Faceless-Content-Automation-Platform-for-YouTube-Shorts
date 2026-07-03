@@ -2,6 +2,7 @@
 import { Film, Play, Download, CheckCircle2, Clock } from "lucide-react";
 import SectionCard from "@/components/ui/SectionCard";
 import SubmitButton from "@/components/ui/SubmitButton";
+import PublishButton from "@/components/export/PublishButton";
 import type { ExportJob } from "@prisma/client";
 
 interface ExportPanelProps {
@@ -74,9 +75,7 @@ export default function ExportPanel({ status, exportJobs, onGenerateAction }: Ex
                   >
                     <Download size={14} /> Download MP4
                   </a>
-                  <button className="flex-1 flex justify-center items-center gap-1 bg-white border border-green-300 text-green-700 hover:bg-green-100 font-medium py-1.5 px-3 rounded transition-colors">
-                    <CheckCircle2 size={14} /> Ready to Publish
-                  </button>
+                  <PublishButton exportJobId={job.id} projectId={job.projectId} />
                 </div>
               )}
               

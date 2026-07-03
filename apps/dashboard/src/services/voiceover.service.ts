@@ -1,13 +1,36 @@
 // File Location: src/services/voiceover.service.ts
+// Real TTS voiceover generation using Microsoft Edge TTS (msedge-tts).
+// Generates actual .mp3 audio files for each scene's narration text.
+
 import { prisma } from "@/lib/prisma";
 import type { ServiceResult } from "@/lib/types";
 import type { Voiceover } from "@prisma/client";
+import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
+import fs from "fs";
+import path from "path";
+import { getAudioDir, toPublicUrl } from "@/lib/audio-utils";
+
+// Voice selection — high-quality multilingual voice
+const TTS_VOICE = "en-US-AvaMultilingualNeural";
 
 /**
- * Trigger voiceover generation for all scenes in a project.
- * 
- * Phase 1 Placeholder: This simulates an API call to a TTS provider 
- * and creates mock Voiceover records in the database.
+ * Calculate MP3 duration from file size.
+ * At 96kbps CBR mono MP3: duration = fileSize / (96000 / 8) = fileSize / 12000
+ */
+function getMP3Duration(filePath: string): number {
+  const stats = fs.statSync(filePath);
+  const durationSecs = stats.size / 12000;
+  return parseFloat(durationSecs.toFixed(2));
+}
+
+/**
+ * Generate real TTS audio for all scenes in a project.
+ *
+ * Flow:
+ * 1. Fetch script + scenes from DB
+ * 2. Clear any existing voiceover records (retry support)
+ * 3. For each scene: call Edge TTS → save .mp3 → read duration
+ * 4. Create Voiceover records with real audio paths and durations
  */
 export async function generateVoiceovers(projectId: string): Promise<ServiceResult<Voiceover[]>> {
   try {
@@ -33,46 +56,62 @@ export async function generateVoiceovers(projectId: string): Promise<ServiceResu
       where: { sceneId: { in: sceneIds } },
     });
 
-    // 4. Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // 4. Prepare output directory
+    const audioDir = getAudioDir(projectId);
 
-    // 5. Create Voiceover records
-    const voiceovers = await prisma.$transaction(
-      script.scenes.map(scene => {
-        // Mock calculation: roughly 150 words per min -> 2.5 words per sec
-        const wordCount = scene.narrationText.split(" ").length;
-        const duration = Math.max(1, wordCount / 2.5);
+    // 5. Generate real TTS audio for each scene
+    const voiceovers: Voiceover[] = [];
 
-        return prisma.voiceover.create({
-          data: {
-            sceneId: scene.id,
-            provider: "elevenlabs-mock",
-            audioUrl: "https://example.com/mock-audio.mp3",
-            duration: parseFloat(duration.toFixed(2)),
-            status: "COMPLETED",
-          }
-        });
-      })
-    );
-    
-    // Also update scene durations with the simulated audio durations
-    await Promise.all(
-      voiceovers.map(vo => 
-        prisma.scene.update({
-          where: { id: vo.sceneId },
-          data: { duration: vo.duration || 0 }
-        })
-      )
-    );
+    for (const scene of script.scenes.sort((a, b) => a.sceneIndex - b.sceneIndex)) {
+      // Create a subdirectory per scene (msedge-tts outputs "audio.mp3" in the dir)
+      const sceneDir = path.join(audioDir, `scene-${scene.sceneIndex}`);
+      if (!fs.existsSync(sceneDir)) {
+        fs.mkdirSync(sceneDir, { recursive: true });
+      }
+
+      // Initialize TTS client (one per scene to avoid websocket issues)
+      const tts = new MsEdgeTTS();
+      await tts.setMetadata(TTS_VOICE, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
+
+      // Generate the audio file
+      const result = await tts.toFile(sceneDir, scene.narrationText);
+      const audioFilePath = result.audioFilePath;
+
+      // Read real duration from file size
+      const duration = getMP3Duration(audioFilePath);
+
+      // Convert to public URL
+      const publicUrl = toPublicUrl(audioFilePath);
+
+      // Create Voiceover record in DB
+      const voiceover = await prisma.voiceover.create({
+        data: {
+          sceneId: scene.id,
+          provider: "msedge-tts",
+          voiceId: TTS_VOICE,
+          audioUrl: publicUrl,
+          localPath: audioFilePath,
+          duration,
+          status: "COMPLETED",
+        },
+      });
+
+      // Update scene duration to match actual audio duration
+      await prisma.scene.update({
+        where: { id: scene.id },
+        data: { duration },
+      });
+
+      voiceovers.push(voiceover);
+    }
 
     return { success: true, data: voiceovers };
   } catch (error) {
     console.error("Voiceover generation error:", error);
-    
-    // Don't fail the whole project, just leave it IN_PRODUCTION for retry
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Failed to generate voiceovers" 
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to generate voiceovers",
     };
   }
 }

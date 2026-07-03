@@ -29,6 +29,7 @@ export async function getProjectWithPipeline(id: string) {
             include: {
               voiceover: true,
               subtitles: true,
+              assets: true,
             }
           },
         },

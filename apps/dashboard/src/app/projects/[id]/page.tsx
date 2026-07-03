@@ -15,8 +15,10 @@ import SceneCard from "@/components/script/SceneCard";
 import VoiceoverPanel from "@/components/voiceover/VoiceoverPanel";
 import SubtitlePanel from "@/components/subtitle/SubtitlePanel";
 import ExportPanel from "@/components/export/ExportPanel";
+import AssetPanel from "@/components/asset/AssetPanel";
 import { generateVoiceoverAction } from "@/actions/voiceover.actions";
 import { generateSubtitlesAction } from "@/actions/subtitle.actions";
+import { generateAssetsAction } from "@/actions/asset.actions";
 
 interface ProjectDetailsProps {
   params: Promise<{ id: string }>;
@@ -34,6 +36,7 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
   const triggerScriptAgent = generateScriptAction.bind(null, project.id, project.niche, project.tone);
   const triggerVideoAgent = triggerExportAction.bind(null, project.id);
   const triggerVoiceoverAgent = generateVoiceoverAction.bind(null, project.id);
+  const triggerAssetAgent = generateAssetsAction.bind(null, project.id);
   const triggerSubtitleAgent = generateSubtitlesAction.bind(null, project.id);
 
   return (
@@ -104,6 +107,12 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
             status={project.status} 
             scenes={project.script?.scenes || []} 
             onGenerateAction={triggerVoiceoverAgent}
+          />
+
+          <AssetPanel
+            status={project.status}
+            scenes={project.script?.scenes || []}
+            onGenerateAction={triggerAssetAgent}
           />
 
           <SubtitlePanel 

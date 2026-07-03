@@ -1,18 +1,38 @@
 // File Location: src/services/export.service.ts
+// Real video export pipeline using FFmpeg.
+// Composes scene clips (visual + audio + subtitles) and concatenates into a final MP4.
+
 import { prisma } from "@/lib/prisma";
 import type { ServiceResult } from "@/lib/types";
 import type { ExportJob } from "@prisma/client";
+import { composeScene, concatenateScenes } from "@/lib/ffmpeg-utils";
+import { getExportsDir, toPublicUrl } from "@/lib/audio-utils";
+import fs from "fs";
+import path from "path";
 
 /**
- * Trigger the video export pipeline for a project.
+ * Trigger the real video export pipeline for a project.
  *
- * Phase 1 Placeholder: This creates an ExportJob record and simulates 
- * a rendering delay. In Phase 2+, this will delegate to a real rendering 
- * worker (FFmpeg, Remotion, or a Python media service) via a job queue.
+ * Flow:
+ * 1. Gather all scene data (voiceover audio, visual asset, subtitle text)
+ * 2. For each scene: compose a clip via FFmpeg (image/video + audio + caption)
+ * 3. Concatenate all clips into one final MP4
+ * 4. Update ExportJob record with real output path and duration
  */
 export async function triggerExport(
   projectId: string
 ): Promise<ServiceResult<ExportJob>> {
+  // Create the ExportJob record first so UI can show "PROCESSING"
+  const exportJob = await prisma.exportJob.create({
+    data: {
+      projectId,
+      status: "PROCESSING",
+      resolution: "1080x1920",
+      format: "mp4",
+      startedAt: new Date(),
+    },
+  });
+
   try {
     // 1. Mark project as exporting
     await prisma.project.update({
@@ -20,44 +40,103 @@ export async function triggerExport(
       data: { status: "EXPORTING" },
     });
 
-    // 2. Create the ExportJob record
-    const exportJob = await prisma.exportJob.create({
-      data: {
-        projectId,
-        status: "PROCESSING",
-        resolution: "1080x1920",
-        format: "mp4",
-        startedAt: new Date(),
+    // 2. Fetch all pipeline data
+    const project = await prisma.project.findUnique({
+      where: { id: projectId },
+      include: {
+        script: {
+          include: {
+            scenes: {
+              include: {
+                voiceover: true,
+                assets: true,
+                subtitles: true,
+              },
+              orderBy: { sceneIndex: "asc" },
+            },
+          },
+        },
       },
     });
 
-    // 3. Simulate rendering delay (3 seconds)
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    if (!project?.script?.scenes.length) {
+      throw new Error("No script or scenes found for export.");
+    }
 
-    // 4. Update the ExportJob to completed with a mock URL
+    const scenes = project.script.scenes;
+
+    // 3. Validate that all scenes have required data
+    for (const scene of scenes) {
+      if (!scene.voiceover?.localPath || !fs.existsSync(scene.voiceover.localPath)) {
+        throw new Error(`Scene ${scene.sceneIndex + 1} is missing voiceover audio. Generate voiceovers first.`);
+      }
+      if (!scene.assets.length || !scene.assets[0].localPath || !fs.existsSync(scene.assets[0].localPath)) {
+        throw new Error(`Scene ${scene.sceneIndex + 1} is missing visual assets. Generate assets first.`);
+      }
+    }
+
+    // 4. Prepare export directory
+    const exportsDir = getExportsDir(projectId);
+    const scenePaths: string[] = [];
+
+    // 5. Compose each scene
+    for (const scene of scenes) {
+      const asset = scene.assets[0];
+      const voiceover = scene.voiceover!;
+      const captionText = scene.onScreenCaption || "";
+
+      const sceneOutputPath = path.join(exportsDir, `scene-${scene.sceneIndex}.mp4`);
+
+      await composeScene({
+        assetPath: asset.localPath!,
+        assetType: asset.type,
+        audioPath: voiceover.localPath!,
+        subtitleText: captionText,
+        audioDuration: voiceover.duration || scene.duration || 5,
+        outputPath: sceneOutputPath,
+      });
+
+      scenePaths.push(sceneOutputPath);
+    }
+
+    // 6. Concatenate all scenes into final video
+    const finalOutputPath = path.join(exportsDir, "final.mp4");
+    await concatenateScenes(scenePaths, finalOutputPath);
+
+    // 7. Calculate total duration
+    const totalDuration = scenes.reduce((sum, s) => sum + (s.voiceover?.duration || s.duration || 0), 0);
+
+    // 8. Update the ExportJob with real output
+    const publicUrl = toPublicUrl(finalOutputPath);
     const completedJob = await prisma.exportJob.update({
       where: { id: exportJob.id },
       data: {
         status: "COMPLETED",
-        outputUrl: "https://example.com/mock-rendered-video.mp4",
-        duration: 35.5, // mock final duration
+        outputUrl: publicUrl,
+        localPath: finalOutputPath,
+        duration: parseFloat(totalDuration.toFixed(2)),
         completedAt: new Date(),
       },
     });
 
-    // 5. Mark project as complete
+    // 9. Mark project as complete
     await prisma.project.update({
       where: { id: projectId },
       data: { status: "COMPLETED" },
     });
 
-    // Note: We deliberately DO NOT create a `Video` record here. 
-    // `Video` represents a published asset. The user must manually 
-    // click "Publish" (Phase 2) to push the ExportJob to YouTube.
-
     return { success: true, data: completedJob };
   } catch (error) {
     console.error("Export error:", error);
+
+    // Update export job as failed
+    await prisma.exportJob.update({
+      where: { id: exportJob.id },
+      data: {
+        status: "FAILED",
+        errorMessage: error instanceof Error ? error.message : "Export failed",
+      },
+    });
 
     await prisma.project.update({
       where: { id: projectId },

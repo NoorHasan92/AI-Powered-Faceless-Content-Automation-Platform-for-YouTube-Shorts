@@ -56,6 +56,8 @@ model Project {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
+  isArchived  Boolean       @default(false)
+
   script      Script?
   videos      Video[]
   exportJobs  ExportJob[]

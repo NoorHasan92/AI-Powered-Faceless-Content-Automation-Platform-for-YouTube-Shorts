@@ -2,11 +2,12 @@
 // This file displays project details and controls both the Script and Video generation pipelines.
 
 import { notFound } from "next/navigation";
-import { ArrowLeft, Film, Clapperboard, RefreshCw, Play, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Film, Clapperboard, RefreshCw, Play, AlertTriangle, Archive, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { getProjectWithPipeline } from "@/services/project.service";
 import { generateScriptAction } from "@/actions/script.actions";
 import { triggerExportAction } from "@/actions/export.actions";
+import { archiveProjectAction, deleteProjectAction } from "@/actions/project.actions";
 import SubmitButton from "@/components/ui/SubmitButton";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SectionCard from "@/components/ui/SectionCard";
@@ -43,10 +44,10 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
     <div className="max-w-5xl mx-auto space-y-8">
       <header className="space-y-4">
         <Link
-          href="/projects"
+          href={project.isArchived ? "/archived" : "/projects"}
           className="text-sm text-slate-500 hover:text-slate-900 flex items-center gap-1 transition-colors"
         >
-          <ArrowLeft size={16} /> Back to Projects
+          <ArrowLeft size={16} /> Back to {project.isArchived ? "Archived" : "Projects"}
         </Link>
         <div className="flex justify-between items-start">
           <div>
@@ -55,7 +56,34 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
               Niche: {project.niche} • Tone: {project.tone}
             </p>
           </div>
-          <StatusBadge status={project.status} />
+          <div className="flex items-center gap-3">
+            <StatusBadge status={project.status} />
+            {project.status === "COMPLETED" && !project.isArchived && (
+              <form action={archiveProjectAction.bind(null, project.id)}>
+                <SubmitButton
+                  pendingText="Archiving..."
+                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5"
+                >
+                  <Archive size={14} /> Archive
+                </SubmitButton>
+              </form>
+            )}
+            {project.isArchived && (
+              <>
+                <span className="bg-slate-100 text-slate-500 border border-slate-200 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1">
+                  <Archive size={12} /> Archived
+                </span>
+                <form action={deleteProjectAction.bind(null, project.id)}>
+                  <SubmitButton
+                    pendingText="Deleting..."
+                    className="bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5"
+                  >
+                    <Trash2 size={14} /> Delete
+                  </SubmitButton>
+                </form>
+              </>
+            )}
+          </div>
         </div>
       </header>
 

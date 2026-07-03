@@ -9,8 +9,9 @@ import type { Project } from "@prisma/client";
 /**
  * Fetch all projects, newest first.
  */
-export async function getProjects(): Promise<Project[]> {
+export async function getProjects(options?: { isArchived?: boolean }): Promise<Project[]> {
   return prisma.project.findMany({
+    where: options?.isArchived !== undefined ? { isArchived: options.isArchived } : undefined,
     orderBy: { createdAt: "desc" },
   });
 }
@@ -92,6 +93,7 @@ export async function getDashboardStats() {
     prisma.project.count({
       where: {
         status: { notIn: ["COMPLETED", "FAILED", "DRAFT"] },
+        isArchived: false,
       },
     }),
     prisma.exportJob.count({
@@ -103,4 +105,32 @@ export async function getDashboardStats() {
   ]);
 
   return { activeProjects, totalVideos, pendingUploads };
+}
+
+/**
+ * Archive or unarchive a project.
+ */
+export async function archiveProject(
+  projectId: string,
+  isArchived: boolean = true
+): Promise<void> {
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { isArchived },
+  });
+}
+
+import { cleanProjectArtifacts } from "@/lib/audio-utils";
+
+/**
+ * Completely delete a project and all its generated files from the system.
+ */
+export async function deleteProject(projectId: string): Promise<void> {
+  // 1. Delete all generated audio, video, and image files on disk
+  cleanProjectArtifacts(projectId);
+  
+  // 2. Delete from DB (Prisma cascade handles related models)
+  await prisma.project.delete({
+    where: { id: projectId },
+  });
 }

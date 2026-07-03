@@ -5,8 +5,27 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { createProjectSchema } from "@/validations/project.schema";
-import { createProject } from "@/services/project.service";
+import { createProject, archiveProject, deleteProject } from "@/services/project.service";
+
+/**
+ * Server Action: Permanently delete a project.
+ */
+export async function deleteProjectAction(projectId: string) {
+  await deleteProject(projectId);
+  revalidatePath("/archived");
+  redirect("/archived");
+}
+
+/**
+ * Server Action: Archive a project.
+ */
+export async function archiveProjectAction(projectId: string) {
+  await archiveProject(projectId, true);
+  revalidatePath("/projects");
+  revalidatePath("/archived");
+}
 
 /**
  * Server Action: Create a new project from form data.

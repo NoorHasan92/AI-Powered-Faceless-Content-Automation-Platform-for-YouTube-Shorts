@@ -6,7 +6,7 @@ import CreateProjectForm from "@/components/project/CreateProjectForm";
 import ProjectCard from "@/components/project/ProjectCard";
 
 export default async function ProjectsPage() {
-  const projects = await getProjects();
+  const projects = await getProjects({ isArchived: false });
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">

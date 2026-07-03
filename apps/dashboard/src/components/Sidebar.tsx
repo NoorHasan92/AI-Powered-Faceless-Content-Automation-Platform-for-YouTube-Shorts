@@ -6,11 +6,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Video, BarChart2, Settings, PlaySquare } from "lucide-react";
+import { Home, Video, BarChart2, Settings, PlaySquare, Archive } from "lucide-react";
 
 const navLinks = [
   { href: "/", icon: Home, label: "Dashboard" },
   { href: "/projects", icon: Video, label: "Projects" },
+  { href: "/archived", icon: Archive, label: "Archived" },
   { href: "/analytics", icon: BarChart2, label: "Analytics" },
   { href: "/settings", icon: Settings, label: "Settings" },
 ];

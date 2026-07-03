@@ -1,16 +1,25 @@
 // File Location: src/app/settings/page.tsx
 // Settings page for managing API keys, default pipeline config, and integrations.
 
-import { Settings, Key, Sliders, MonitorPlay, Shield, Video } from "lucide-react";
+import { Settings, Key, Sliders, MonitorPlay, Shield, Video, LogOut } from "lucide-react";
 import { cookies } from "next/headers";
-import Link from "next/link";
+import { getConnectedYouTubeChannel } from "@/services/youtube.service";
+import UpdatePasswordForm from "@/components/auth/UpdatePasswordForm";
+import { logoutAction } from "@/actions/auth.actions";
+import SubmitButton from "@/components/ui/SubmitButton";
 
 export default async function SettingsPage() {
   const cookieStore = await cookies();
-  const hasYouTubeToken = !!cookieStore.get("yt_access_token")?.value;
+  const ytAccessToken = cookieStore.get("yt_access_token")?.value;
+  const ytRefreshToken = cookieStore.get("yt_refresh_token")?.value;
 
   const hasGemini = !!process.env.GEMINI_API_KEY;
   const hasPexels = !!process.env.PEXELS_API_KEY;
+
+  let ytChannel = null;
+  if (ytAccessToken) {
+    ytChannel = await getConnectedYouTubeChannel(ytAccessToken, ytRefreshToken);
+  }
 
   const sections = [
     {
@@ -51,9 +60,10 @@ export default async function SettingsPage() {
       icon: MonitorPlay,
       items: [
         { 
-          label: "Channel Connection", 
-          status: hasYouTubeToken ? "Connected" : "Not Linked", 
-          statusColor: hasYouTubeToken ? "text-green-600 bg-green-50" : "text-slate-500 bg-slate-100" 
+          label: ytChannel ? ytChannel.title : "Channel Connection", 
+          status: ytAccessToken ? "Connected" : "Not Linked", 
+          statusColor: ytAccessToken ? "text-green-600 bg-green-50" : "text-slate-500 bg-slate-100",
+          thumbnail: ytChannel?.thumbnail
         },
         { 
           label: "Default Visibility", 
@@ -61,7 +71,7 @@ export default async function SettingsPage() {
           statusColor: "text-blue-600 bg-blue-50" 
         },
       ],
-      action: !hasYouTubeToken ? (
+      action: !ytAccessToken ? (
         <div className="px-5 pb-5">
           <a 
             href="/api/auth/youtube"
@@ -76,10 +86,22 @@ export default async function SettingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-      <header>
-        <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
-        <p className="text-slate-500 mt-1">Configure your pipeline, API keys, and integrations.</p>
+      <header className="flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
+          <p className="text-slate-500 mt-1">Configure your pipeline, API keys, and integrations.</p>
+        </div>
+        <form action={logoutAction}>
+          <SubmitButton
+            pendingText="Signing out..."
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2"
+          >
+            <LogOut size={16} /> Sign Out
+          </SubmitButton>
+        </form>
       </header>
+
+      <UpdatePasswordForm />
 
       <div className="space-y-6">
         {sections.map(({ title, description, icon: Icon, items, action }) => (
@@ -94,11 +116,16 @@ export default async function SettingsPage() {
               </div>
             </div>
             <div className="divide-y divide-slate-100">
-              {items.map(({ label, status, statusColor }) => (
-                <div key={label} className="flex items-center justify-between px-5 py-3.5">
-                  <span className="text-sm text-slate-700">{label}</span>
-                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${statusColor}`}>
-                    {status}
+              {items.map((item: any) => (
+                <div key={item.label} className="flex items-center justify-between px-5 py-3.5">
+                  <div className="flex items-center gap-3">
+                    {item.thumbnail && (
+                      <img src={item.thumbnail} alt={item.label} className="w-8 h-8 rounded-full bg-slate-200" />
+                    )}
+                    <span className="text-sm font-medium text-slate-700">{item.label}</span>
+                  </div>
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${item.statusColor}`}>
+                    {item.status}
                   </span>
                 </div>
               ))}

@@ -150,3 +150,35 @@ export async function uploadToYouTube(
     };
   }
 }
+
+/**
+ * Fetch the connected YouTube channel details.
+ */
+export async function getConnectedYouTubeChannel(accessToken: string, refreshToken?: string) {
+  try {
+    const oauth2Client = getOAuth2Client();
+    oauth2Client.setCredentials({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+
+    const youtube = google.youtube({ version: "v3", auth: oauth2Client });
+    const response = await youtube.channels.list({
+      part: ["snippet", "statistics"],
+      mine: true,
+    });
+
+    const channel = response.data.items?.[0];
+    if (!channel) return null;
+
+    return {
+      id: channel.id,
+      title: channel.snippet?.title,
+      thumbnail: channel.snippet?.thumbnails?.default?.url,
+      subscriberCount: channel.statistics?.subscriberCount,
+    };
+  } catch (error) {
+    console.error("Failed to fetch YouTube channel info:", error);
+    return null;
+  }
+}

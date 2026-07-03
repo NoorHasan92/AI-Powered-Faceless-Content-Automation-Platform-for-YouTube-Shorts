@@ -102,6 +102,7 @@ export async function uploadToYouTube(
       script.metaDescription,
       "",
       script.hashtags.map(h => `#${h}`).join(" "),
+      "#shorts #youtubeshorts", // Explicitly added to guarantee Shorts algorithm pickup
     ].join("\n");
 
     // 4. Upload the video
@@ -115,7 +116,7 @@ export async function uploadToYouTube(
           defaultLanguage: "en",
         },
         status: {
-          privacyStatus: "private", // Start as private for safety
+          privacyStatus: "public", // Publish directly to the public
           selfDeclaredMadeForKids: false,
         },
       },

@@ -23,6 +23,7 @@
 # misc
 .DS_Store
 *.pem
+/public/pipeline
 
 # debug
 npm-debug.log*

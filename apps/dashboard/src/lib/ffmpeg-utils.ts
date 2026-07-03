@@ -7,9 +7,19 @@ import ffmpegPath from "ffmpeg-static";
 import path from "path";
 import fs from "fs";
 
-// Point fluent-ffmpeg to the bundled FFmpeg binary
-if (ffmpegPath) {
-  ffmpeg.setFfmpegPath(ffmpegPath);
+import os from "os";
+
+// Next.js Turbopack corrupts the ffmpeg-static path by prepending \ROOT\
+// We must dynamically resolve the absolute path to the binary.
+const isWindows = os.platform() === "win32";
+const binaryName = isWindows ? "ffmpeg.exe" : "ffmpeg";
+const actualFfmpegPath = path.join(process.cwd(), "node_modules", "ffmpeg-static", binaryName);
+
+if (fs.existsSync(actualFfmpegPath)) {
+  ffmpeg.setFfmpegPath(actualFfmpegPath);
+} else if (ffmpegPath) {
+  // Fallback just in case
+  ffmpeg.setFfmpegPath(ffmpegPath.replace(/^\\ROOT\\/i, ""));
 }
 
 /**
@@ -38,19 +48,24 @@ export function composeScene(options: {
 
       command
         .complexFilter([
-          // Scale and crop video to exact 1080x1920
-          `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[bg]`,
-          // Draw subtitle text - centered, bold, with a dark background strip
-          `[bg]drawtext=text='${escapeFfmpegText(subtitleText)}':fontsize=48:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-h/4:font=Arial[outv]`
+          // Scale, crop to 1080x1920, and force 30fps for smooth video
+          `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30[bg]`,
+          // Draw subtitle text
+          `[bg]drawtext=text='${escapeFfmpegText(subtitleText)}':fontsize=48:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-h/4:font=Arial[outv]`,
+          // Smooth audio fade in/out to remove harsh audio cuts
+          `[1:a]afade=t=in:st=0:d=0.1,afade=t=out:st=${Math.max(0, audioDuration - 0.2)}:d=0.2[outa]`
         ])
         .outputOptions([
           "-map", "[outv]",
-          "-map", "1:a",
+          "-map", "[outa]",
           "-t", String(audioDuration),
           "-c:v", "libx264",
           "-preset", "fast",
+          "-b:v", "8M",
+          "-maxrate", "8M",
+          "-bufsize", "16M",
           "-c:a", "aac",
-          "-b:a", "128k",
+          "-b:a", "192k",
           "-pix_fmt", "yuv420p",
           "-shortest",
         ]);
@@ -63,19 +78,24 @@ export function composeScene(options: {
 
       command
         .complexFilter([
-          // Scale and crop image to exact 1080x1920
-          `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1[bg]`,
+          // Scale, crop to 1080x1920, and force 30fps
+          `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30[bg]`,
           // Draw subtitle text
-          `[bg]drawtext=text='${escapeFfmpegText(subtitleText)}':fontsize=48:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-h/4:font=Arial[outv]`
+          `[bg]drawtext=text='${escapeFfmpegText(subtitleText)}':fontsize=48:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-h/4:font=Arial[outv]`,
+          // Smooth audio fade in/out
+          `[1:a]afade=t=in:st=0:d=0.1,afade=t=out:st=${Math.max(0, audioDuration - 0.2)}:d=0.2[outa]`
         ])
         .outputOptions([
           "-map", "[outv]",
-          "-map", "1:a",
+          "-map", "[outa]",
           "-t", String(audioDuration),
           "-c:v", "libx264",
           "-preset", "fast",
+          "-b:v", "8M",
+          "-maxrate", "8M",
+          "-bufsize", "16M",
           "-c:a", "aac",
-          "-b:a", "128k",
+          "-b:a", "192k",
           "-pix_fmt", "yuv420p",
           "-shortest",
         ]);

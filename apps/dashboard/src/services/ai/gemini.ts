@@ -11,13 +11,23 @@ import { AI_DEFAULTS } from "@/lib/constants";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 
+// ---------------------------------------------------------------------------
+// Model configuration with robust fallback architecture
+// ---------------------------------------------------------------------------
+const FALLBACK_MODELS = [
+  "gemini-3.1-flash-lite", // Primary
+  "gemini-3.5-flash",      // Backup 1
+  "gemini-2.5-flash-lite", // Backup 2
+  "gemini-2.5-flash"       // Backup 3
+];
+
 /**
  * Returns a Gemini model configured for structured JSON output.
- * All AI generation in the pipeline should go through this function.
+ * @param modelName The specific model string to instantiate
  */
-export function getStructuredModel() {
+export function getStructuredModel(modelName: string = AI_DEFAULTS.model) {
   return genAI.getGenerativeModel({
-    model: AI_DEFAULTS.model,
+    model: modelName,
     generationConfig: {
       responseMimeType: AI_DEFAULTS.responseMimeType,
     },
@@ -26,11 +36,28 @@ export function getStructuredModel() {
 
 /**
  * Sends a prompt to Gemini and returns the raw parsed JSON.
- * The caller is responsible for validating the shape with Zod.
+ * Automatically tries fallback models if a quota (429) or availability error occurs.
  */
 export async function generateStructuredContent(prompt: string): Promise<unknown> {
-  const model = getStructuredModel();
-  const result = await model.generateContent(prompt);
-  const responseText = result.response.text();
-  return JSON.parse(responseText);
+  let lastError: any = null;
+
+  for (const currentModel of FALLBACK_MODELS) {
+    try {
+      console.log(`[AI] Attempting generation with model: ${currentModel}`);
+      const model = getStructuredModel(currentModel);
+      const result = await model.generateContent(prompt);
+      
+      const responseText = result.response.text();
+      console.log(`[AI] Successfully generated content using ${currentModel}`);
+      
+      return JSON.parse(responseText);
+    } catch (error: any) {
+      console.warn(`[AI] Model ${currentModel} failed:`, error?.message || error);
+      lastError = error;
+      // Continue to the next fallback model in the loop
+    }
+  }
+
+  console.error("[AI] All fallback models failed.");
+  throw lastError || new Error("Failed to generate content with any available AI models.");
 }

@@ -72,7 +72,7 @@ export const PROJECT_STATUS_CONFIG: Record<string, StatusConfig> = {
 // ---------------------------------------------------------------------------
 
 export const AI_DEFAULTS = {
-  model: "gemini-2.0-flash-lite",
+  model: "gemini-3.1-flash-lite",
   minScenes: 4,
   maxScenes: 6,
   defaultSceneDuration: 4.0,

@@ -19,11 +19,14 @@
   },
   "homepage": "https://github.com/NoorHasan92/AI-Powered-Faceless-Content-Automation-Platform-for-YouTube-Shorts#readme",
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "prisma": "^7.8.0"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.2.3",
     "pg": "^8.22.0"
   }
 }

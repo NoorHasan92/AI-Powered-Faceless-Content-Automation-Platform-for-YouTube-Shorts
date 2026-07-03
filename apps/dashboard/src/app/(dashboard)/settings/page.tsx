@@ -101,8 +101,6 @@ export default async function SettingsPage() {
         </form>
       </header>
 
-      <UpdatePasswordForm />
-
       <div className="space-y-6">
         {sections.map(({ title, description, icon: Icon, items, action }) => (
           <div key={title} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -134,6 +132,8 @@ export default async function SettingsPage() {
           </div>
         ))}
       </div>
+
+      <UpdatePasswordForm />
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 text-center">
         <Shield className="mx-auto text-slate-300 mb-3" size={32} />

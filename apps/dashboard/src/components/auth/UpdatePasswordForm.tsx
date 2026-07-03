@@ -14,6 +14,15 @@ export default function UpdatePasswordForm() {
   async function handleUpdate(formData: FormData) {
     setError("");
     setSuccess("");
+    
+    const newPassword = formData.get("newPassword") as string;
+    const confirmPassword = formData.get("confirmPassword") as string;
+    
+    if (newPassword !== confirmPassword) {
+      setError("New passwords do not match.");
+      return;
+    }
+
     startTransition(async () => {
       const result = await updatePasswordAction(formData);
       if (result?.error) {
@@ -48,8 +57,9 @@ export default function UpdatePasswordForm() {
           </div>
         )}
 
-        <div className="space-y-4 max-w-sm">
-          <div>
+        <div className="space-y-4 max-w-3xl">
+          {/* Current Password - half width to match New Password */}
+          <div className="w-full sm:w-[calc(50%-0.5rem)]">
             <label className="block text-sm font-medium text-slate-700 mb-1">Current Password</label>
             <input
               type="password"
@@ -58,22 +68,36 @@ export default function UpdatePasswordForm() {
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
-            <input
-              type="password"
-              name="newPassword"
-              required
-              minLength={8}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+          
+          {/* New and Confirm Passwords - side by side */}
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">New Password</label>
+              <input
+                type="password"
+                name="newPassword"
+                required
+                minLength={8}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
+              <input
+                type="password"
+                name="confirmPassword"
+                required
+                minLength={8}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
           </div>
         </div>
 
         <div className="pt-2">
           <SubmitButton
             pendingText="Updating..."
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg text-sm shadow-sm transition-colors"
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg text-sm shadow-sm transition-colors"
           >
             Update Password
           </SubmitButton>

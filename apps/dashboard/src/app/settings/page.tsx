@@ -63,12 +63,12 @@ export default async function SettingsPage() {
       ],
       action: !hasYouTubeToken ? (
         <div className="px-5 pb-5">
-          <Link 
+          <a 
             href="/api/auth/youtube"
             className="inline-flex items-center justify-center gap-2 w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg text-sm transition-colors shadow-sm"
           >
             <Video size={16} /> Connect YouTube Account
-          </Link>
+          </a>
         </div>
       ) : null
     },

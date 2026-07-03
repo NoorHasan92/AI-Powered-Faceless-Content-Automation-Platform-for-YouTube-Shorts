@@ -6,11 +6,17 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
 enum ProjectStatus {
   DRAFT
   GENERATING_SCRIPT
-  GENERATING_ASSETS
-  COMPILING_VIDEO
+  SCRIPT_READY          // Script generated, production modules unlocked
+  IN_PRODUCTION         // Voiceover/assets/subtitles work in progress
+  EXPORT_QUEUED         // Ready for video compilation
+  EXPORTING             // Video being compiled
   COMPLETED
   FAILED
 }
@@ -22,17 +28,30 @@ enum PublishStatus {
   FAILED
 }
 
+// Reusable status for any generation step (voiceover, assets, exports)
+enum GenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+// ---------------------------------------------------------------------------
+// Core Models
+// ---------------------------------------------------------------------------
+
 model Project {
   id          String        @id @default(uuid())
   title       String
-  niche       String        // e.g., "science", "finance", "animal-facts"
+  niche       String        // e.g., "science", "finance", "animals"
   tone        String        @default("educational")
   status      ProjectStatus @default(DRAFT)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
-  
+
   script      Script?
   videos      Video[]
+  exportJobs  ExportJob[]
 }
 
 model Script {
@@ -44,10 +63,11 @@ model Script {
   metaTitle         String
   metaDescription   String   @db.Text
   hashtags          String[]
+  estimatedDuration Float?               // Total estimated seconds for the full script
   factChecked       Boolean  @default(false)
   factCheckNotes    String?  @db.Text
   createdAt         DateTime @default(now())
-  
+
   project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   scenes            Scene[]
 }
@@ -59,22 +79,77 @@ model Scene {
   narrationText   String   @db.Text
   visualPrompt    String   @db.Text // AI generation prompt text
   onScreenCaption String
+  searchKeywords  String[]           // For stock asset search queries
   duration        Float    @default(0.0) // Set after TTS audio generation
-  
+
   script          Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
   assets          Asset[]
+  voiceover       Voiceover?
+  subtitles       SubtitleChunk[]
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline Models
+// ---------------------------------------------------------------------------
+
+model Voiceover {
+  id          String           @id @default(uuid())
+  sceneId     String           @unique
+  provider    String           @default("placeholder") // "elevenlabs", "google-tts", etc.
+  voiceId     String?                                   // Provider-specific voice identifier
+  audioUrl    String?          @db.Text                 // Remote URL or CDN path
+  localPath   String?                                   // Local filesystem path
+  duration    Float?                                     // Actual audio duration in seconds
+  status      GenerationStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+
+  scene       Scene            @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+}
+
+model SubtitleChunk {
+  id          String   @id @default(uuid())
+  sceneId     String
+  text        String   @db.Text          // The caption/subtitle text
+  startTime   Float?                      // Seconds from scene start (for timing)
+  endTime     Float?
+  style       String   @default("default") // Future: style preset name
+  createdAt   DateTime @default(now())
+
+  scene       Scene    @relation(fields: [sceneId], references: [id], onDelete: Cascade)
 }
 
 model Asset {
-  id          String   @id @default(uuid())
+  id          String           @id @default(uuid())
   sceneId     String
-  type        String   // "STOCK_VIDEO", "STOCK_IMAGE", "AI_IMAGE"
-  sourceUrl   String   @db.Text
-  localPath   String?  // Download location on worker server
-  createdAt   DateTime @default(now())
-  
-  scene       Scene    @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  type        String           // "STOCK_VIDEO", "STOCK_IMAGE", "AI_IMAGE"
+  sourceUrl   String           @db.Text
+  localPath   String?          // Download location on worker server
+  status      GenerationStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+
+  scene       Scene            @relation(fields: [sceneId], references: [id], onDelete: Cascade)
 }
+
+model ExportJob {
+  id           String           @id @default(uuid())
+  projectId    String
+  status       GenerationStatus @default(PENDING)
+  outputUrl    String?          @db.Text    // Final rendered video URL
+  localPath    String?
+  duration     Float?                        // Final video duration
+  resolution   String           @default("1080x1920") // 9:16 shorts format
+  format       String           @default("mp4")
+  errorMessage String?          @db.Text
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime         @default(now())
+
+  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Publishing & Analytics (Phase 2+)
+// ---------------------------------------------------------------------------
 
 model Video {
   id            String        @id @default(uuid())
@@ -87,7 +162,7 @@ model Video {
   publishedAt   DateTime?
   youtubeId     String?       // Remote reference ID from YouTube Data API
   createdAt     DateTime      @default(now())
-  
+
   project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   analytics     Analytics[]
 }
@@ -100,6 +175,6 @@ model Analytics {
   comments    Int      @default(0)
   retention   Float    @default(0.0) // Watch time percentage
   recordedAt  DateTime @default(now())
-  
+
   video       Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
 }

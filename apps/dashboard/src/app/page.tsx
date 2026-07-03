@@ -2,31 +2,14 @@
 // This file renders the main dashboard overview as a Server Component.
 // It fetches real-time aggregate metrics from the Prisma database to display SaaS statistics.
 
-import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { PlaySquare, Clock, CheckCircle, AlertTriangle } from "lucide-react";
+import { getDashboardStats, getRecentProjects } from "@/services/project.service";
+import StatusBadge from "@/components/ui/StatusBadge";
 
 export default async function Home() {
-  // Run all database queries in parallel for maximum speed
-  const [activeProjects, totalVideos, pendingUploads, recentProjects] = await Promise.all([
-    // 1. Count projects that are currently in progress
-    prisma.project.count({
-      where: {
-        status: { notIn: ["COMPLETED", "FAILED", "DRAFT"] },
-      },
-    }),
-    // 2. Count all rendered videos
-    prisma.video.count(),
-    // 3. Count videos sitting in the publishing queue
-    prisma.video.count({
-      where: { publishStatus: "SCHEDULED" },
-    }),
-    // 4. Get the 5 most recently updated projects
-    prisma.project.findMany({
-      take: 5,
-      orderBy: { updatedAt: "desc" },
-    }),
-  ]);
+  const { activeProjects, totalVideos, pendingUploads } = await getDashboardStats();
+  const recentProjects = await getRecentProjects(5);
 
   const stats = [
     { label: "Active Pipelines", value: activeProjects, icon: Clock, accent: "text-blue-600 bg-blue-50 border-blue-100" },
@@ -79,17 +62,7 @@ export default async function Home() {
                       {project.niche} • {project.tone}
                     </p>
                   </div>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-semibold tracking-wide ${
-                      project.status === "COMPLETED"
-                        ? "bg-green-50 text-green-700 border border-green-200"
-                        : project.status === "FAILED"
-                        ? "bg-red-50 text-red-700 border border-red-200"
-                        : "bg-blue-50 text-blue-700 border border-blue-200"
-                    }`}
-                  >
-                    {project.status}
-                  </span>
+                  <StatusBadge status={project.status} />
                 </Link>
               ))}
             </div>

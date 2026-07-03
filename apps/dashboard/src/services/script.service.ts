@@ -1,0 +1,109 @@
+// File Location: src/services/script.service.ts
+// Business logic for AI script generation and database persistence.
+// Owns the Gemini call, Zod validation, and Prisma write — actions just call through.
+
+import { prisma } from "@/lib/prisma";
+import type { ServiceResult } from "@/lib/types";
+import { generateStructuredContent } from "./ai/gemini";
+import { buildScriptPrompt } from "./ai/prompts";
+import { scriptResponseSchema } from "@/validations/script.schema";
+import type { Script } from "@prisma/client";
+
+/**
+ * Generate a script for a project using the Gemini AI.
+ *
+ * Flow:
+ * 1. Set project status to GENERATING_SCRIPT
+ * 2. Delete any existing script (for retry/regeneration)
+ * 3. Call Gemini with the prompt
+ * 4. Validate the AI response with Zod
+ * 5. Save validated data to the database
+ * 6. Update project status to GENERATING_ASSETS
+ */
+export async function generateScript(
+  projectId: string,
+  niche: string,
+  tone: string
+): Promise<ServiceResult<Script>> {
+  try {
+    // 1. Mark as in-progress
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: "GENERATING_SCRIPT" },
+    });
+
+    // 2. Clean up any previous script (supports retry after failure)
+    await prisma.script.deleteMany({
+      where: { projectId },
+    });
+
+    // 3. Build prompt and call Gemini
+    const prompt = buildScriptPrompt(niche, tone);
+    const rawData = await generateStructuredContent(prompt);
+
+    // 4. Validate with Zod — replaces the old manual validateAIResponse()
+    const parseResult = scriptResponseSchema.safeParse(rawData);
+
+    if (!parseResult.success) {
+      const errors = parseResult.error.issues
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ");
+      throw new Error(`AI response validation failed: ${errors}`);
+    }
+
+    const aiData = parseResult.data;
+
+    // 5. Persist to database
+    const script = await prisma.script.create({
+      data: {
+        projectId,
+        hook: aiData.hook,
+        bodyText: aiData.bodyText,
+        cta: aiData.cta,
+        metaTitle: aiData.metaTitle,
+        metaDescription: aiData.metaDescription,
+        estimatedDuration: aiData.estimatedDuration,
+        scenes: {
+          create: aiData.scenes.map((scene, index) => ({
+            sceneIndex: index,
+            narrationText: scene.narrationText,
+            visualPrompt: scene.visualPrompt,
+            onScreenCaption: scene.onScreenCaption,
+            searchKeywords: scene.searchKeywords,
+            duration: scene.duration,
+          })),
+        },
+      },
+    });
+
+    // 6. Advance pipeline
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: "SCRIPT_READY" },
+    });
+
+    return { success: true, data: script };
+  } catch (error) {
+    console.error("Script generation error:", error);
+
+    // Mark project as failed
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: "FAILED" },
+    });
+
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error during script generation",
+    };
+  }
+}
+
+/**
+ * Delete a project's script and all cascaded scenes.
+ */
+export async function deleteScript(projectId: string): Promise<void> {
+  await prisma.script.deleteMany({
+    where: { projectId },
+  });
+}

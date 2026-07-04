@@ -369,10 +369,6 @@ Instead of building a simple “script generator,” the goal was to design a sy
 
 ---
 
-# 📷 Screenshots / Demo
-
-_Add screenshots, GIFs, or demo links here._
-
 Examples:
 
 - Dashboard
@@ -389,7 +385,7 @@ Examples:
 **1. Clone the repository**
 
 ```bash
-git clone <your-repo-url>
+git clone <https://github.com/NoorHasan92/AI-Powered-Faceless-Content-Automation-Platform-for-YouTube-Shorts.git>
 cd AI-Powered-Faceless-Content-Automation-Platform-for-YouTube-Shorts
 npm install
 ```

@@ -5,8 +5,8 @@
 import { prisma } from "@/lib/prisma";
 import type { ServiceResult } from "@/lib/types";
 import { generateStructuredContent } from "./ai/gemini";
-import { buildScriptPrompt } from "./ai/prompts";
-import { scriptResponseSchema } from "@/validations/script.schema";
+import { buildCreativeBriefPrompt, buildScriptPrompt } from "./ai/prompts";
+import { scriptResponseSchema, creativeBriefSchema } from "@/validations/script.schema";
 import type { Script } from "@prisma/client";
 
 /**
@@ -24,7 +24,9 @@ export async function generateScript(
   projectId: string,
   niche: string,
   tone: string,
-  targetDuration: string
+  targetDuration: string,
+  specificTopic?: string | null,
+  creatorInstructions?: string | null
 ): Promise<ServiceResult<Script>> {
   try {
     // 1. Mark as in-progress
@@ -38,17 +40,54 @@ export async function generateScript(
       where: { projectId },
     });
 
-    // 3. Fetch recent topics to prevent idea duplication
+    // 3. Fetch recent scripts to prevent idea duplication and build structured memory
     const recentProjects = await prisma.project.findMany({
       where: { status: { not: "FAILED" } },
       orderBy: { createdAt: "desc" },
-      take: 10,
+      take: 5,
+      include: { script: true }
     });
-    const recentTopics = recentProjects.map(p => p.title).join(", ");
 
-    // 4. Build prompt and call Gemini
-    const prompt = buildScriptPrompt(niche, tone, targetDuration, recentTopics);
-    const rawData = await generateStructuredContent(prompt);
+    const recentMemory = recentProjects
+      .filter(p => p.script?.creativeBrief)
+      .map(p => {
+        const brief = p.script!.creativeBrief as any;
+        return {
+          coreTopic: brief.coreTopic,
+          contentAngle: brief.contentAngle,
+          requiredAnchors: brief.requiredAnchors,
+          endingStyle: brief.endingStyle
+        };
+      });
+      
+    const recentMemoryString = recentMemory.length > 0 ? JSON.stringify(recentMemory, null, 2) : "";
+
+    // 4. STAGE 1: Generate Creative Brief
+    const briefPrompt = buildCreativeBriefPrompt(
+      niche,
+      tone,
+      targetDuration,
+      specificTopic,
+      creatorInstructions,
+      recentMemoryString
+    );
+    const rawBrief = await generateStructuredContent(briefPrompt);
+    const briefParseResult = creativeBriefSchema.safeParse(rawBrief);
+    
+    if (!briefParseResult.success) {
+      const errors = briefParseResult.error.issues
+        .map((i) => `${i.path.join(".")}: ${i.message}`)
+        .join("; ");
+      throw new Error(`Stage 1 Creative Brief validation failed: ${errors}`);
+    }
+    const creativeBrief = briefParseResult.data;
+
+    // 5. STAGE 2: Generate Script from locked brief
+    const scriptPrompt = buildScriptPrompt(
+      creativeBrief,
+      targetDuration
+    );
+    const rawData = await generateStructuredContent(scriptPrompt);
 
     // 4. Validate with Zod — replaces the old manual validateAIResponse()
     const parseResult = scriptResponseSchema.safeParse(rawData);
@@ -62,7 +101,7 @@ export async function generateScript(
 
     const aiData = parseResult.data;
 
-    // 5. Persist to database
+    // 6. Persist to database (including the generated brief)
     const script = await prisma.script.create({
       data: {
         projectId,
@@ -72,6 +111,7 @@ export async function generateScript(
         metaTitle: aiData.metaTitle,
         metaDescription: aiData.metaDescription,
         estimatedDuration: aiData.estimatedDuration,
+        creativeBrief: creativeBrief as any,
         scenes: {
           create: aiData.scenes.map((scene, index) => ({
             sceneIndex: index,
@@ -86,7 +126,7 @@ export async function generateScript(
       },
     });
 
-    // 6. Advance pipeline
+    // 7. Advance pipeline
     await prisma.project.update({
       where: { id: projectId },
       data: { status: "SCRIPT_READY" },

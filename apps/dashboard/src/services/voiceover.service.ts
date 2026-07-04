@@ -10,15 +10,7 @@ import fs from "fs";
 import path from "path";
 import { getAudioDir, toPublicUrl } from "@/lib/audio-utils";
 
-/**
- * Calculate MP3 duration from file size.
- * At 96kbps CBR mono MP3: duration = fileSize / (96000 / 8) = fileSize / 12000
- */
-function getMP3Duration(filePath: string): number {
-  const stats = fs.statSync(filePath);
-  const durationSecs = stats.size / 12000;
-  return parseFloat(durationSecs.toFixed(2));
-}
+import mp3Duration from "mp3-duration";
 
 /**
  * Generate real TTS audio for all scenes in a project.
@@ -76,8 +68,13 @@ export async function generateVoiceovers(projectId: string): Promise<ServiceResu
       const result = await tts.toFile(sceneDir, scene.narrationText);
       const audioFilePath = result.audioFilePath;
 
-      // Read real duration from file size
-      const duration = getMP3Duration(audioFilePath);
+      // Read real exact duration using mp3-duration parser
+      const duration: number = await new Promise((resolve, reject) => {
+        mp3Duration(audioFilePath, (err, dur) => {
+          if (err) return reject(err);
+          resolve(parseFloat(dur.toFixed(2)));
+        });
+      });
 
       // Convert to public URL
       const publicUrl = toPublicUrl(audioFilePath);

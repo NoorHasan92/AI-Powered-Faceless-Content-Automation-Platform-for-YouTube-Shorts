@@ -55,6 +55,8 @@ export async function createProject(
         tone: input.tone,
         targetDuration: input.targetDuration,
         voice: input.voice,
+        specificTopic: input.specificTopic,
+        creatorInstructions: input.creatorInstructions,
       },
     });
     return { success: true, data: project };

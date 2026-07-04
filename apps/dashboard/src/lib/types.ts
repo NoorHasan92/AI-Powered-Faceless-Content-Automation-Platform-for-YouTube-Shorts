@@ -22,6 +22,8 @@ export interface CreateProjectInput {
   tone: string;
   targetDuration: string;
   voice: string;
+  specificTopic?: string;
+  creatorInstructions?: string;
 }
 
 // ---------------------------------------------------------------------------

@@ -103,6 +103,39 @@ export default function CreateProjectForm() {
         </div>
       </div>
 
+      {/* Advanced Scripting Controls */}
+      <div className="pt-2 border-t border-slate-100 space-y-6">
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Specific Topic / Topic Seed <span className="text-slate-400 font-normal">(Optional)</span>
+          </label>
+          <input
+            type="text"
+            name="specificTopic"
+            placeholder='e.g., "Why smartphones destroy focus", "The Doorway Effect", "Why gold comes from exploding stars"'
+            className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-400 bg-white shadow-sm transition-shadow"
+          />
+          <p className="text-xs text-slate-500 mt-2">
+            Leave blank to let the AI pick a random topic from your niche. If provided, the script will focus exactly on this seed.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">
+            Additional Instructions / Creator Notes <span className="text-slate-400 font-normal">(Optional)</span>
+          </label>
+          <textarea
+            name="creatorInstructions"
+            rows={3}
+            placeholder={`e.g.,\n"Focus on students and smartphone addiction"\n"Keep it more scientific than clickbait"\n"End with a reflective payoff instead of a generic CTA"\n"Avoid overused examples and use a fresh angle"`}
+            className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-400 bg-white shadow-sm transition-shadow resize-y"
+          />
+          <p className="text-xs text-slate-500 mt-2">
+            Use this to steer the AI's originality, examples, pacing, and ending style. These act as high-priority director notes.
+          </p>
+        </div>
+      </div>
+
       {/* Voice Selection Cards */}
       <div className="pt-2 border-t border-slate-100">
         <label className="block text-sm font-medium text-slate-700 mb-3">

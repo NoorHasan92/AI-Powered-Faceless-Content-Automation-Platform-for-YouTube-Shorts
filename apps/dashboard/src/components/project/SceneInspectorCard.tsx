@@ -39,6 +39,24 @@ export default function SceneInspectorCard({ scene }: SceneInspectorCardProps) {
       <div className="space-y-3">
         <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">AI Asset Planning</h4>
         
+        {scene.visualRole && (
+          <div className="flex gap-2 items-center">
+            <span className="text-xs text-slate-500">Visual Role:</span>
+            <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded text-[11px] font-bold tracking-wide uppercase border border-amber-200">
+              {scene.visualRole}
+            </span>
+          </div>
+        )}
+
+        {scene.endingIntent && (
+          <div className="flex gap-2 items-center">
+            <span className="text-xs text-slate-500">Ending Intent:</span>
+            <span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded text-[11px] font-bold tracking-wide uppercase border border-purple-200">
+              {scene.endingIntent}
+            </span>
+          </div>
+        )}
+        
         {scene.searchKeywords && scene.searchKeywords.length > 0 && (
           <div className="flex gap-2 items-center flex-wrap">
             <span className="text-xs text-slate-500">Light Tags:</span>

@@ -7,10 +7,9 @@ import Link from "next/link";
 import { getProjectWithPipeline } from "@/services/project.service";
 import { generateScriptAction } from "@/actions/script.actions";
 import { triggerExportAction } from "@/actions/export.actions";
-import { archiveProjectAction, deleteProjectAction } from "@/actions/project.actions";
+import { archiveProjectAction, deleteProjectAction, discardProjectAction } from "@/actions/project.actions";
 import SubmitButton from "@/components/ui/SubmitButton";
 import StatusBadge from "@/components/ui/StatusBadge";
-import SectionCard from "@/components/ui/SectionCard";
 import ScriptPanel from "@/components/script/ScriptPanel";
 import SceneInspector from "@/components/project/SceneInspector";
 import VoiceoverPanel from "@/components/voiceover/VoiceoverPanel";
@@ -34,7 +33,15 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
   }
 
   // Pre-bind server actions
-  const triggerScriptAgent = generateScriptAction.bind(null, project.id, project.niche, project.tone, project.targetDuration);
+  const triggerScriptAgent = generateScriptAction.bind(
+    null, 
+    project.id, 
+    project.niche, 
+    project.tone, 
+    project.targetDuration,
+    project.specificTopic,
+    project.creatorInstructions
+  );
   const triggerVideoAgent = triggerExportAction.bind(null, project.id);
   const triggerVoiceoverAgent = generateVoiceoverAction.bind(null, project.id);
   const triggerAssetAgent = generateAssetsAction.bind(null, project.id);
@@ -55,6 +62,19 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
             <p className="text-slate-500 mt-1 capitalize">
               Niche: {project.niche} • Tone: {project.tone} • Length: {project.targetDuration} • Voice: {project.voice.split("-")[2].replace("MultilingualNeural", "")}
             </p>
+            {project.specificTopic && (
+              <p className="text-blue-600 mt-1.5 text-sm font-medium">
+                Topic Seed: {project.specificTopic}
+              </p>
+            )}
+            {project.creatorInstructions && (
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-lg max-w-2xl">
+                <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider mb-1 block">Director Notes</span>
+                <p className="text-sm text-amber-900 whitespace-pre-wrap">
+                  "{project.creatorInstructions}"
+                </p>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <StatusBadge status={project.status} />
@@ -65,6 +85,16 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
                   className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5"
                 >
                   <Archive size={14} /> Archive
+                </SubmitButton>
+              </form>
+            )}
+            {project.status !== "COMPLETED" && !project.isArchived && (
+              <form action={discardProjectAction.bind(null, project.id)}>
+                <SubmitButton
+                  pendingText="Discarding..."
+                  className="bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5"
+                >
+                  <Trash2 size={14} /> Discard
                 </SubmitButton>
               </form>
             )}

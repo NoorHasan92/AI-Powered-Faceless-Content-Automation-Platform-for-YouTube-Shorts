@@ -19,6 +19,7 @@
     "googleapis": "^173.0.0",
     "jose": "^6.2.3",
     "lucide-react": "^1.23.0",
+    "mp3-duration": "^1.1.0",
     "msedge-tts": "^2.0.6",
     "next": "16.2.10",
     "pexels": "^1.4.0",

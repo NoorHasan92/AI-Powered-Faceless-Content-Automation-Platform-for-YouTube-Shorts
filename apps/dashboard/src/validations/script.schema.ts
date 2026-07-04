@@ -6,6 +6,23 @@ import { z } from "zod";
 import { AI_DEFAULTS } from "@/lib/constants";
 
 // ---------------------------------------------------------------------------
+// Stage 1: Creative Brief Schema — validates the initial brief generation
+// ---------------------------------------------------------------------------
+
+export const creativeBriefSchema = z.object({
+  coreTopic: z.string().min(1, "Core topic is required"),
+  audienceContext: z.string().min(1, "Audience context is required"),
+  contentAngle: z.string().min(1, "Content angle is required"),
+  endingStyle: z.string().min(1, "Ending style is required"),
+  requiredAnchors: z.array(z.string()).default([]),
+  forbiddenDriftTopics: z.array(z.string()).default([]),
+  contentConstraints: z.array(z.string()).default([]),
+  visualExpectations: z.string().min(1, "Visual expectations are required"),
+  toneGuidance: z.string().min(1, "Tone guidance is required"),
+  durationGuidance: z.string().min(1, "Duration guidance is required"),
+});
+
+// ---------------------------------------------------------------------------
 // Scene schema — validates each scene object from the AI response
 // ---------------------------------------------------------------------------
 
@@ -16,9 +33,22 @@ export const sceneSchema = z.object({
   visualPrompt: z
     .string()
     .min(1, "Visual prompt is required"),
-  visualIntent: z
-    .string()
-    .default(""),
+  visualRole: z
+    .enum([
+      "LITERAL_FOOTAGE",
+      "ABSTRACT_ANIMATION",
+      "INFOGRAPHIC",
+      "DEMONSTRATION",
+      "TRANSITION"
+    ])
+    .optional(),
+  endingIntent: z
+    .enum([
+      "CTA",
+      "EMOTIONAL_PAYOFF",
+      "PRACTICAL_ADVICE"
+    ])
+    .optional(),
   onScreenCaption: z
     .string()
     .default(""),
@@ -76,3 +106,4 @@ export const scriptResponseSchema = z.object({
 
 export type ScriptResponse = z.infer<typeof scriptResponseSchema>;
 export type SceneInput = z.infer<typeof sceneSchema>;
+export type CreativeBrief = z.infer<typeof creativeBriefSchema>;

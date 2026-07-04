@@ -15,8 +15,10 @@ export async function generateScriptAction(
   projectId: string,
   niche: string,
   tone: string,
-  targetDuration: string
+  targetDuration: string,
+  specificTopic?: string | null,
+  creatorInstructions?: string | null
 ) {
-  await generateScript(projectId, niche, tone, targetDuration);
+  await generateScript(projectId, niche, tone, targetDuration, specificTopic, creatorInstructions);
   revalidatePath(`/projects/${projectId}`);
 }

@@ -36,6 +36,20 @@ enum GenerationStatus {
   FAILED
 }
 
+enum VisualRole {
+  LITERAL_FOOTAGE
+  ABSTRACT_ANIMATION
+  INFOGRAPHIC
+  DEMONSTRATION
+  TRANSITION
+}
+
+enum EndingIntent {
+  CTA
+  EMOTIONAL_PAYOFF
+  PRACTICAL_ADVICE
+}
+
 // ---------------------------------------------------------------------------
 // Core Models
 // ---------------------------------------------------------------------------
@@ -55,6 +69,8 @@ model Project {
   targetDuration String     @default("30-50 Seconds")
   voice       String        @default("en-US-AvaMultilingualNeural")
   status      ProjectStatus @default(DRAFT)
+  specificTopic       String?
+  creatorInstructions String?       @db.Text
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -75,6 +91,7 @@ model Script {
   metaDescription   String   @db.Text
   hashtags          String[]
   estimatedDuration Float?               // Total estimated seconds for the full script
+  creativeBrief     Json?                // Generated during Stage 1
   factChecked       Boolean  @default(false)
   factCheckNotes    String?  @db.Text
   createdAt         DateTime @default(now())
@@ -92,6 +109,8 @@ model Scene {
   onScreenCaption String
   searchKeywords  String[]           // For stock asset search queries (light tags)
   assetSearches   Json?              // Structured ordered retrieval plan
+  visualRole      VisualRole?        // The selected visual presentation mode
+  endingIntent    EndingIntent?      // (Used primarily on the final scene) Intent of the beat
   duration        Float    @default(0.0) // Set after TTS audio generation
 
   script          Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)

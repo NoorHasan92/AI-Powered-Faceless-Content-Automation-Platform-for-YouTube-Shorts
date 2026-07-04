@@ -22,6 +22,12 @@ export const createProjectSchema = z.object({
   voice: z
     .string()
     .min(1, "Voice selection is required"),
+  specificTopic: z
+    .string()
+    .optional(),
+  creatorInstructions: z
+    .string()
+    .optional(),
 });
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;

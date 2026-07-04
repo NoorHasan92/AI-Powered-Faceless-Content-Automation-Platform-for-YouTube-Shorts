@@ -19,6 +19,15 @@ export async function deleteProjectAction(projectId: string) {
 }
 
 /**
+ * Server Action: Discard an incomplete project.
+ */
+export async function discardProjectAction(projectId: string) {
+  await deleteProject(projectId);
+  revalidatePath("/projects");
+  redirect("/projects");
+}
+
+/**
  * Server Action: Archive a project.
  */
 export async function archiveProjectAction(projectId: string) {
@@ -38,6 +47,8 @@ export async function createProjectAction(formData: FormData) {
     tone: formData.get("tone"),
     targetDuration: formData.get("targetDuration"),
     voice: formData.get("voice"),
+    specificTopic: formData.get("specificTopic") || undefined,
+    creatorInstructions: formData.get("creatorInstructions") || undefined,
   };
 
   // Validate with Zod

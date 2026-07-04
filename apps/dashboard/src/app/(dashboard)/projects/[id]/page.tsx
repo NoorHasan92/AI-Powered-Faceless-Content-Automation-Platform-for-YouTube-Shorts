@@ -12,7 +12,7 @@ import SubmitButton from "@/components/ui/SubmitButton";
 import StatusBadge from "@/components/ui/StatusBadge";
 import SectionCard from "@/components/ui/SectionCard";
 import ScriptPanel from "@/components/script/ScriptPanel";
-import SceneCard from "@/components/script/SceneCard";
+import SceneInspector from "@/components/project/SceneInspector";
 import VoiceoverPanel from "@/components/voiceover/VoiceoverPanel";
 import SubtitlePanel from "@/components/subtitle/SubtitlePanel";
 import ExportPanel from "@/components/export/ExportPanel";
@@ -119,13 +119,7 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
           />
 
           {project.script && project.script.scenes.length > 0 && (
-            <SectionCard title="Visual Storyboard" icon={Clapperboard} iconColor="text-blue-500">
-              {project.script.scenes
-                .sort((a, b) => a.sceneIndex - b.sceneIndex)
-                .map((scene) => (
-                  <SceneCard key={scene.id} scene={scene} />
-                ))}
-            </SectionCard>
+            <SceneInspector scenes={project.script.scenes} />
           )}
         </div>
 

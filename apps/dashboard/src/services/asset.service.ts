@@ -46,69 +46,72 @@ function isPexelsError(response: Videos | Photos | ErrorResponse): response is E
 }
 
 /**
- * Search Pexels for a video matching the keywords. Falls back to image if no video found.
- * Returns the download URL, type, and Pexels source URL.
+ * Search Pexels sequentially using the provided structured asset searches.
+ * Stops and returns at the first successful match.
  */
-async function findPexelsAsset(keywords: string[]): Promise<{
+async function findPexelsAsset(searches: { query: string, type: "video" | "image" }[]): Promise<{
   downloadUrl: string;
   sourceUrl: string;
+  searchQuery: string;
   type: "STOCK_VIDEO" | "STOCK_IMAGE";
   extension: string;
 } | null> {
-  const query = keywords.slice(0, 3).join(" ");
+  
+  for (const search of searches) {
+    const { query, type } = search;
 
-  // Try video search first (portrait orientation for Shorts)
-  try {
-    const videoResult = await pexelsClient.videos.search({
-      query,
-      per_page: 15,
-      orientation: "portrait",
-    });
+    if (type === "video") {
+      try {
+        const videoResult = await pexelsClient.videos.search({
+          query,
+          per_page: 15,
+          orientation: "portrait",
+        });
 
-    if (!isPexelsError(videoResult) && videoResult.videos.length > 0) {
-      // Pick a random video from the results to prevent repeating the same clip
-      const randomIndex = Math.floor(Math.random() * videoResult.videos.length);
-      const video = videoResult.videos[randomIndex];
-      
-      // Find the best quality file that's reasonable size (HD, not 4K)
-      const videoFile = video.video_files
-        .filter(f => f.width && f.width <= 1920)
-        .sort((a, b) => (b.width || 0) - (a.width || 0))[0] || video.video_files[0];
+        if (!isPexelsError(videoResult) && videoResult.videos.length > 0) {
+          const randomIndex = Math.floor(Math.random() * videoResult.videos.length);
+          const video = videoResult.videos[randomIndex];
+          
+          const videoFile = video.video_files
+            .filter(f => f.width && f.width <= 1920)
+            .sort((a, b) => (b.width || 0) - (a.width || 0))[0] || video.video_files[0];
 
-      if (videoFile?.link) {
-        return {
-          downloadUrl: videoFile.link,
-          sourceUrl: video.url,
-          type: "STOCK_VIDEO",
-          extension: "mp4",
-        };
+          if (videoFile?.link) {
+            return {
+              downloadUrl: videoFile.link,
+              sourceUrl: video.url,
+              searchQuery: query,
+              type: "STOCK_VIDEO",
+              extension: "mp4",
+            };
+          }
+        }
+      } catch (err) {
+        console.warn(`Pexels video search failed for query: ${query}`, err);
+      }
+    } else if (type === "image") {
+      try {
+        const photoResult = await pexelsClient.photos.search({
+          query,
+          per_page: 15,
+          orientation: "portrait",
+        });
+
+        if (!isPexelsError(photoResult) && photoResult.photos.length > 0) {
+          const randomIndex = Math.floor(Math.random() * photoResult.photos.length);
+          const photo = photoResult.photos[randomIndex];
+          return {
+            downloadUrl: photo.src.large2x || photo.src.large,
+            sourceUrl: photo.url,
+            searchQuery: query,
+            type: "STOCK_IMAGE",
+            extension: "jpg",
+          };
+        }
+      } catch (err) {
+        console.warn(`Pexels image search failed for query: ${query}`, err);
       }
     }
-  } catch (err) {
-    console.warn("Pexels video search failed, falling back to images:", err);
-  }
-
-  // Fallback: image search
-  try {
-    const photoResult = await pexelsClient.photos.search({
-      query,
-      per_page: 15,
-      orientation: "portrait",
-    });
-
-    if (!isPexelsError(photoResult) && photoResult.photos.length > 0) {
-      // Pick a random photo
-      const randomIndex = Math.floor(Math.random() * photoResult.photos.length);
-      const photo = photoResult.photos[randomIndex];
-      return {
-        downloadUrl: photo.src.large2x || photo.src.large,
-        sourceUrl: photo.url,
-        type: "STOCK_IMAGE",
-        extension: "jpg",
-      };
-    }
-  } catch (err) {
-    console.warn("Pexels image search also failed:", err);
   }
 
   return null;
@@ -147,14 +150,27 @@ export async function generateAssets(projectId: string): Promise<ServiceResult<A
     const assets: Asset[] = [];
 
     for (const scene of script.scenes.sort((a, b) => a.sceneIndex - b.sceneIndex)) {
-      const keywords = scene.searchKeywords.length > 0
-        ? scene.searchKeywords
-        : [scene.onScreenCaption]; // fallback if no keywords
+      // Parse assetSearches JSON
+      let searches: { query: string, type: "video" | "image" }[] = [];
+      if (scene.assetSearches && Array.isArray(scene.assetSearches)) {
+        searches = scene.assetSearches as any;
+      }
+      
+      // Fallback if AI didn't provide structured searches
+      if (searches.length === 0) {
+        const fallbackQuery = scene.searchKeywords.length > 0
+          ? scene.searchKeywords.slice(0, 3).join(" ")
+          : scene.onScreenCaption;
+        searches = [
+          { query: fallbackQuery, type: "video" },
+          { query: fallbackQuery, type: "image" }
+        ];
+      }
 
-      const pexelsAsset = await findPexelsAsset(keywords);
+      const pexelsAsset = await findPexelsAsset(searches);
 
       if (!pexelsAsset) {
-        console.warn(`No Pexels asset found for scene ${scene.sceneIndex}, keywords: ${keywords}`);
+        console.warn(`No Pexels asset found for scene ${scene.sceneIndex}`);
         // Create a placeholder asset record with FAILED status
         const failedAsset = await prisma.asset.create({
           data: {
@@ -181,6 +197,7 @@ export async function generateAssets(projectId: string): Promise<ServiceResult<A
           type: pexelsAsset.type,
           sourceUrl: pexelsAsset.sourceUrl,
           localPath,
+          searchQuery: pexelsAsset.searchQuery,
           status: "COMPLETED",
         },
       });

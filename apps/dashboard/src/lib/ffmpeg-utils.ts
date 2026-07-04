@@ -22,11 +22,13 @@ if (fs.existsSync(actualFfmpegPath)) {
   ffmpeg.setFfmpegPath(ffmpegPath.replace(/^\\ROOT\\/i, ""));
 }
 
+import { generateAssFile } from "./ass-utils";
+
 /**
  * Compose a single scene: background visual + voiceover audio + subtitle text.
  * Output is a 1080x1920 (9:16 portrait) MP4 clip.
  */
-export function composeScene(options: {
+export async function composeScene(options: {
   assetPath: string;        // Path to background image or video
   assetType: string;        // "STOCK_VIDEO" or "STOCK_IMAGE"
   audioPath: string;        // Path to voiceover .mp3
@@ -36,31 +38,23 @@ export function composeScene(options: {
 }): Promise<void> {
   const { assetPath, assetType, audioPath, subtitles, audioDuration, outputPath } = options;
 
+  // Generate ASS file for styled subtitles
+  const assFilePath = outputPath.replace(".mp4", ".ass");
+  let assFilter = "";
+  if (subtitles && subtitles.length > 0) {
+    await generateAssFile(subtitles, assFilePath);
+    // Use relative path to avoid Windows drive letter colon parsing issues in FFmpeg filters
+    const relativeAssPath = path.relative(process.cwd(), assFilePath).replace(/\\/g, "/");
+    // Escape single quotes just in case, though there shouldn't be any
+    const escapedAssPath = relativeAssPath.replace(/'/g, "\\'");
+    assFilter = `ass='${escapedAssPath}'`;
+  }
+
   return new Promise((resolve, reject) => {
     const command = ffmpeg();
     
-    // Generate the chained drawtext filters for subtitles
-    // We map each subtitle chunk to a drawtext filter with 'enable=between(...)'
-    // so they only appear at the correct timestamps.
-    let textFilters = "";
-    
-    if (subtitles && subtitles.length > 0) {
-      const filters = subtitles.map((sub, index) => {
-        const escapedText = escapeFfmpegText(sub.text);
-        const drawText = `drawtext=text='${escapedText}':fontsize=48:fontcolor=white:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-h/4:font=Arial:enable='between(t,${sub.startTime},${sub.endTime})'`;
-        return drawText;
-      });
-      // Chain them together: [bg]drawtext...[t0];[t0]drawtext...[t1]; etc.
-      let chain = `[bg]${filters[0]}[t0]`;
-      for (let i = 1; i < filters.length; i++) {
-        chain += `;[t${i-1}]${filters[i]}[t${i}]`;
-      }
-      // The final output of the text chain is the last label
-      chain += `;[t${filters.length - 1}]copy[outv]`;
-      textFilters = chain;
-    } else {
-      textFilters = `[bg]copy[outv]`;
-    }
+    // Determine the text filter block: if assFilter exists, pipe background through it
+    const textFilters = assFilter ? `[bg]${assFilter}[outv]` : `[bg]copy[outv]`;
 
     if (assetType === "STOCK_VIDEO") {
       // Video asset: scale to fill 1080x1920, loop if shorter than audio

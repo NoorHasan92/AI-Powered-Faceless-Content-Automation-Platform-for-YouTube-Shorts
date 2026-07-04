@@ -90,7 +90,8 @@ model Scene {
   narrationText   String   @db.Text
   visualPrompt    String   @db.Text // AI generation prompt text
   onScreenCaption String
-  searchKeywords  String[]           // For stock asset search queries
+  searchKeywords  String[]           // For stock asset search queries (light tags)
+  assetSearches   Json?              // Structured ordered retrieval plan
   duration        Float    @default(0.0) // Set after TTS audio generation
 
   script          Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
@@ -130,15 +131,16 @@ model SubtitleChunk {
 }
 
 model Asset {
-  id          String           @id @default(uuid())
-  sceneId     String
-  type        String           // "STOCK_VIDEO", "STOCK_IMAGE", "AI_IMAGE"
-  sourceUrl   String           @db.Text
-  localPath   String?          // Download location on worker server
-  status      GenerationStatus @default(PENDING)
-  createdAt   DateTime         @default(now())
+  id           String           @id @default(uuid())
+  sceneId      String
+  type         String           // "STOCK_VIDEO", "STOCK_IMAGE", "AI_IMAGE"
+  sourceUrl    String           @db.Text
+  localPath    String?          // Download location on worker server
+  searchQuery  String?          // The specific query used to find this asset
+  status       GenerationStatus @default(PENDING)
+  createdAt    DateTime         @default(now())
 
-  scene       Scene            @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+  scene        Scene            @relation(fields: [sceneId], references: [id], onDelete: Cascade)
 }
 
 model ExportJob {

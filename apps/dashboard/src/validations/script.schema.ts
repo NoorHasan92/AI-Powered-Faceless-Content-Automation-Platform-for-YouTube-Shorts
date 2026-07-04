@@ -16,11 +16,23 @@ export const sceneSchema = z.object({
   visualPrompt: z
     .string()
     .min(1, "Visual prompt is required"),
+  visualIntent: z
+    .string()
+    .default(""),
   onScreenCaption: z
     .string()
     .default(""),
   searchKeywords: z
     .array(z.string())
+    .default([]),
+  assetSearches: z
+    .array(
+      z.object({
+        query: z.string(),
+        type: z.enum(["video", "image"]),
+        purpose: z.string(),
+      })
+    )
     .default([]),
   duration: z
     .number()

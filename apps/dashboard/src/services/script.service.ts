@@ -79,6 +79,7 @@ export async function generateScript(
             visualPrompt: scene.visualPrompt,
             onScreenCaption: scene.onScreenCaption,
             searchKeywords: scene.searchKeywords,
+            assetSearches: scene.assetSearches,
             duration: scene.duration,
           })),
         },

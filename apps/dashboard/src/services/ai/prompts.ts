@@ -33,8 +33,26 @@ You must return ONLY a raw JSON object matching this exact structure:
     {
       "narrationText": "The exact words spoken in this scene",
       "visualPrompt": "A highly detailed prompt for an AI video generator (e.g., 'Cinematic 4k shot of a glowing jellyfish, dark ocean background, neon colors')",
+      "visualIntent": "Explain the goal of the visual, e.g., 'show how environment affects behavior in a realistic way'",
       "onScreenCaption": "1-4 words of punchy text to display on screen",
       "searchKeywords": ["keyword1", "keyword2", "keyword3"],
+      "assetSearches": [
+        {
+          "query": "scientist in laboratory looking at brain scan",
+          "type": "video",
+          "purpose": "primary"
+        },
+        {
+          "query": "brain scan research lab",
+          "type": "video",
+          "purpose": "fallback"
+        },
+        {
+          "query": "brain science illustration",
+          "type": "image",
+          "purpose": "fallback"
+        }
+      ],
       "duration": 4.5
     }
   ]
@@ -47,6 +65,7 @@ ${avoidanceRule}
 - Ensure the visualPrompts are highly descriptive for an AI image/video generator.
 - The \`duration\` should be an estimated time in seconds to speak the narration text for that specific scene.
 - \`estimatedDuration\` should be the mathematical sum of all scene durations.
-- \`searchKeywords\` should be 2-4 relevant terms for finding stock footage or images.
+- \`searchKeywords\` should be 2-4 broad relevant terms (light semantic tags).
+- \`assetSearches\` must be an ordered array of 3 specific asset retrieval queries, from highly specific to broad fallback. Valid types are "video" or "image".
 `.trim();
 }

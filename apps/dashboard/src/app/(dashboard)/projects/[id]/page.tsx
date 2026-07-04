@@ -48,7 +48,7 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
   const triggerSubtitleAgent = generateSubtitlesAction.bind(null, project.id);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8 pb-24">
       <header className="space-y-4">
         <Link
           href={project.isArchived ? "/archived" : "/projects"}
@@ -56,11 +56,11 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
         >
           <ArrowLeft size={16} /> Back to {project.isArchived ? "Archived" : "Projects"}
         </Link>
-        <div className="flex justify-between items-start">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">{project.title}</h1>
-            <p className="text-slate-500 mt-1 capitalize">
-              Niche: {project.niche} • Tone: {project.tone} • Length: {project.targetDuration} • Voice: {project.voice.split("-")[2].replace("MultilingualNeural", "")}
+        <div className="flex flex-col md:flex-row md:justify-between items-start gap-4">
+          <div className="min-w-0">
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 leading-tight">{project.title}</h1>
+            <p className="text-slate-500 mt-1 capitalize text-sm md:text-base">
+              {project.niche} • {project.tone} • {project.targetDuration} • {project.voice.split("-")[2].replace("MultilingualNeural", "")}
             </p>
             {project.specificTopic && (
               <p className="text-blue-600 mt-1.5 text-sm font-medium">
@@ -68,31 +68,31 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
               </p>
             )}
             {project.creatorInstructions && (
-              <div className="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-lg max-w-2xl">
+              <div className="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-lg max-w-2xl overflow-hidden">
                 <span className="text-[11px] font-bold text-amber-700 uppercase tracking-wider mb-1 block">Director Notes</span>
-                <p className="text-sm text-amber-900 whitespace-pre-wrap">
+                <p className="text-sm text-amber-900 whitespace-pre-wrap break-words">
                   "{project.creatorInstructions}"
                 </p>
               </div>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
             <StatusBadge status={project.status} />
             {project.status === "COMPLETED" && !project.isArchived && (
-              <form action={archiveProjectAction.bind(null, project.id)}>
+              <form action={archiveProjectAction.bind(null, project.id)} className="flex-1 md:flex-none">
                 <SubmitButton
                   pendingText="Archiving..."
-                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5"
+                  className="w-full justify-center bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5"
                 >
                   <Archive size={14} /> Archive
                 </SubmitButton>
               </form>
             )}
             {project.status !== "COMPLETED" && !project.isArchived && (
-              <form action={discardProjectAction.bind(null, project.id)}>
+              <form action={discardProjectAction.bind(null, project.id)} className="flex-1 md:flex-none">
                 <SubmitButton
                   pendingText="Discarding..."
-                  className="bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5"
+                  className="w-full justify-center bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5"
                 >
                   <Trash2 size={14} /> Discard
                 </SubmitButton>
@@ -103,10 +103,10 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
                 <span className="bg-slate-100 text-slate-500 border border-slate-200 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1">
                   <Archive size={12} /> Archived
                 </span>
-                <form action={deleteProjectAction.bind(null, project.id)}>
+                <form action={deleteProjectAction.bind(null, project.id)} className="flex-1 md:flex-none">
                   <SubmitButton
                     pendingText="Deleting..."
-                    className="bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5"
+                    className="w-full justify-center bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5"
                   >
                     <Trash2 size={14} /> Delete
                   </SubmitButton>

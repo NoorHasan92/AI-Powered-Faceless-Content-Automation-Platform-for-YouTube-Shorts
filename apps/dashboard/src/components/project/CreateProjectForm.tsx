@@ -126,7 +126,7 @@ export default function CreateProjectForm() {
           </label>
           <textarea
             name="creatorInstructions"
-            rows={3}
+            rows={5}
             placeholder={`e.g.,\n"Focus on students and smartphone addiction"\n"Keep it more scientific than clickbait"\n"End with a reflective payoff instead of a generic CTA"\n"Avoid overused examples and use a fresh angle"`}
             className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-400 bg-white shadow-sm transition-shadow resize-y"
           />
@@ -202,7 +202,7 @@ export default function CreateProjectForm() {
       <div className="flex justify-end pt-4">
         <SubmitButton
           pendingText="Initializing Pipeline..."
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center gap-2"
+          className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
         >
           <Plus size={18} /> Initialize Automated Pipeline
         </SubmitButton>

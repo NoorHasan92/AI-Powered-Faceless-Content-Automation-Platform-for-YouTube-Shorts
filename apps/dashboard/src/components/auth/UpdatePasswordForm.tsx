@@ -97,7 +97,7 @@ export default function UpdatePasswordForm() {
         <div className="pt-2">
           <SubmitButton
             pendingText="Updating..."
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg text-sm shadow-sm transition-colors"
+            className="w-full sm:w-auto flex justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg text-sm shadow-sm transition-colors"
           >
             Update Password
           </SubmitButton>

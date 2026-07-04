@@ -21,12 +21,14 @@ export default function ScriptPanel({ script, status, onGenerateAction }: Script
           </p>
           {status !== "FAILED" && (
             <form action={onGenerateAction}>
-              <SubmitButton
-                pendingText="AI is writing..."
-                className="bg-slate-900 hover:bg-slate-800 text-white font-medium py-2 px-4 rounded-lg text-sm transition-colors shadow-sm"
-              >
-                <RefreshCw size={14} /> Trigger AI Script Agent
-              </SubmitButton>
+              <div className="fixed md:static bottom-0 left-0 right-0 p-4 md:p-0 bg-white/90 md:bg-transparent backdrop-blur-md md:backdrop-blur-none border-t border-slate-200 md:border-none z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] md:shadow-none">
+                <SubmitButton
+                  pendingText="AI is writing..."
+                  className="w-full md:w-auto flex justify-center items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-medium py-3 md:py-2 px-4 rounded-lg text-sm md:text-sm transition-colors shadow-sm"
+                >
+                  <RefreshCw size={16} className="md:w-3.5 md:h-3.5" /> Trigger AI Script Agent
+                </SubmitButton>
+              </div>
             </form>
           )}
         </div>
@@ -111,10 +113,10 @@ export default function ScriptPanel({ script, status, onGenerateAction }: Script
 
           {status !== "FAILED" && (
             <div className="pt-4 border-t border-slate-100 flex justify-end mt-2">
-              <form action={onGenerateAction}>
+              <form action={onGenerateAction} className="w-full md:w-auto">
                 <SubmitButton
                   pendingText="Regenerating..."
-                  className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5"
+                  className="w-full justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2.5 md:py-1.5 px-3 rounded-lg text-sm md:text-xs transition-colors shadow-sm flex items-center gap-1.5"
                 >
                   <RefreshCw size={14} /> Regenerate Script
                 </SubmitButton>

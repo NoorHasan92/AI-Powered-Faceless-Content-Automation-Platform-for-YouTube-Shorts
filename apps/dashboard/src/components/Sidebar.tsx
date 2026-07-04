@@ -4,9 +4,10 @@
 
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Video, BarChart2, Settings, PlaySquare, Archive } from "lucide-react";
+import { Home, Video, BarChart2, Settings, PlaySquare, Archive, Menu, X } from "lucide-react";
 
 const navLinks = [
   { href: "/", icon: Home, label: "Dashboard" },
@@ -18,9 +19,50 @@ const navLinks = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // Close mobile drawer when route changes
+  useEffect(() => {
+    setIsMobileOpen(false);
+  }, [pathname]);
 
   return (
-    <div className="w-64 h-screen bg-slate-900 text-white flex flex-col border-r border-slate-800 shrink-0">
+    <>
+      {/* Mobile Top Navigation Header */}
+      <header className="md:hidden flex items-center justify-between p-4 bg-slate-900 text-white border-b border-slate-800 shrink-0 shadow-sm z-40">
+        <div className="flex items-center gap-2">
+          <img src="/icon.svg" alt="ShortForge" className="w-6 h-6" />
+          <span className="font-bold text-lg">ShortForge</span>
+        </div>
+        <button 
+          onClick={() => setIsMobileOpen(true)} 
+          className="p-1.5 -mr-1.5 text-slate-300 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
+        >
+          <Menu size={24} />
+        </button>
+      </header>
+
+      {/* Mobile Drawer Overlay */}
+      {isMobileOpen && (
+        <div 
+          className="md:hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm transition-opacity"
+          onClick={() => setIsMobileOpen(false)} 
+        />
+      )}
+
+      {/* Sidebar (Desktop fixed, Mobile drawer) */}
+      <div className={`
+        fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white flex flex-col border-r border-slate-800 shrink-0 transition-transform duration-300 ease-in-out
+        md:static md:translate-x-0
+        ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
+      `}>
+        {/* Mobile close button (inside drawer) */}
+        <button 
+          onClick={() => setIsMobileOpen(false)}
+          className="md:hidden absolute top-4 right-4 p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md"
+        >
+          <X size={20} />
+        </button>
       <div className="p-6 border-b border-slate-800">
         <h1 className="text-xl font-bold flex items-center gap-2.5">
           <img src="/icon.svg" alt="ShortForge" className="w-7 h-7" />
@@ -62,6 +104,7 @@ export default function Sidebar() {
           </p>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }

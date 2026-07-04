@@ -90,15 +90,15 @@ export default async function SettingsPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
-      <header className="flex justify-between items-end">
+      <header className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
         <div>
           <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
           <p className="text-slate-500 mt-1">Configure your pipeline, API keys, and integrations.</p>
         </div>
-        <form action={logoutAction}>
+        <form action={logoutAction} className="w-full md:w-auto">
           <SubmitButton
             pendingText="Signing out..."
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2"
+            className="w-full md:w-auto justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2"
           >
             <LogOut size={16} /> Sign Out
           </SubmitButton>
@@ -119,7 +119,7 @@ export default async function SettingsPage() {
             </div>
             <div className="divide-y divide-slate-100">
               {items.map((item: any) => (
-                <div key={item.label} className="flex items-center justify-between px-5 py-3.5">
+                <div key={item.label} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-5 py-3.5">
                   <div className="flex items-center gap-3">
                     {item.thumbnail && (
                       <img src={item.thumbnail} alt={item.label} className="w-8 h-8 rounded-full bg-slate-200" />
@@ -127,9 +127,9 @@ export default async function SettingsPage() {
                     <span className="text-sm font-medium text-slate-700">{item.label}</span>
                   </div>
                   {item.isComponent ? (
-                    item.component
+                    <div className="w-full sm:w-auto">{item.component}</div>
                   ) : (
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${item.statusColor}`}>
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full w-fit ${item.statusColor}`}>
                       {item.status}
                     </span>
                   )}

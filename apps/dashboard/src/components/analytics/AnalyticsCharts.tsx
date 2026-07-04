@@ -25,14 +25,14 @@ export default function AnalyticsCharts({ pipelineTrend, projectsByNiche }: Anal
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       
       {/* Activity Trend (Bar Chart) */}
-      <div className="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+      <div className="lg:col-span-2 bg-white p-4 md:p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900 mb-6">Pipeline Activity (Last 7 Days)</h3>
-        <div className="h-72">
+        <div className="h-64 md:h-72">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={pipelineTrend} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+            <BarChart data={pipelineTrend} margin={{ top: 5, right: 10, left: -25, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#64748b" }} dy={10} />
-              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#64748b" }} />
+              <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b" }} dy={10} minTickGap={15} />
+              <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#64748b" }} />
               <Tooltip 
                 contentStyle={{ borderRadius: "8px", border: "1px solid #e2e8f0", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
                 cursor={{ fill: "#f8fafc" }}
@@ -45,14 +45,14 @@ export default function AnalyticsCharts({ pipelineTrend, projectsByNiche }: Anal
       </div>
 
       {/* Projects by Niche (Pie Chart) */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+      <div className="bg-white p-4 md:p-6 rounded-xl border border-slate-200 shadow-sm">
         <h3 className="text-lg font-semibold text-slate-900 mb-6">Projects by Niche</h3>
         {projectsByNiche.length === 0 ? (
-          <div className="h-72 flex items-center justify-center text-slate-400 text-sm">
+          <div className="h-64 md:h-72 flex items-center justify-center text-slate-400 text-sm">
             No projects found.
           </div>
         ) : (
-          <div className="h-72 relative">
+          <div className="h-64 md:h-72 relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie

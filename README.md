@@ -1,47 +1,422 @@
-# AI-Powered Faceless Content Automation Platform for YouTube Shorts
+# ShortForge  
 
-A full-stack, AI-driven automation platform built to generate high-retention, viral-style YouTube Shorts on autopilot. It handles everything from initial ideation and scriptwriting to prompt engineering for visuals.
+**AI-Powered Faceless Content Automation Platform for YouTube Shorts**
 
-## Core Features & Architecture
+ShortForge is a full-stack AI content automation platform that generates and publishes faceless YouTube Shorts from a simple niche/topic input. It automates the end-to-end workflow: **topic steering, script generation, scene planning, stock asset retrieval, voiceover generation, subtitle rendering, video composition, analytics, and direct YouTube publishing**.
 
-### 🧠 2-Stage Script Generation (Brief-Locking)
+The system is designed as a creator productivity tool for building short-form educational or viral-style content pipelines with minimal manual editing.
 
-To prevent the AI from drifting into generic advice, script generation is split into two strict cognitive steps:
+---
 
-1. **Stage 1 (Creative Brief):** The AI absorbs the requested niche, specific topic seed, and director notes to output a rigidly structured `CreativeBrief` JSON object. This explicitly locks the angle, target audience, required anchors, and forbidden generic topics.
-2. **Stage 2 (Script Execution):** The AI acts purely as an executor. It consumes the locked Creative Brief and outputs a mathematically precise script (hook, body, CTA, visual prompts, and scene-level timings) that strictly adheres to the brief.
+## ✨ Features
 
-### 🧩 Structured Memory Deduplication
+### 1) AI Script Generation with Topic Steering
 
-The platform maintains a "Cognitive Memory" of the last 5 successfully generated videos.
+- Generate short-form video scripts from:
+  - **Niche**
+  - **Narration tone**
+  - **Target duration**
+  - **Specific topic / topic seed**
+  - **Creator instructions / director notes**
+- Supports a **2-stage script generation architecture**:
+  - **Stage 1: Creative Brief Lock**
+  - **Stage 2: Script + Scene generation**
+- Prevents generic topic drift by locking:
+  - core topic
+  - required anchors
+  - forbidden drift topics
+  - content constraints
+  - ending style
 
-- It tracks the `coreTopic`, `contentAngle`, `requiredAnchors`, and `endingStyle` of each video.
-- **Auto-Pivot:** If you request a topic that was recently covered, the AI automatically pivots its execution strategy (varying the angle, visual framing, and emotional payoff) to guarantee a completely fresh take on the exact same topic.
-- **Broad Mode:** If you don't provide a specific topic, the AI will ensure the new topic does not overlap with any recent videos.
+---
 
-### 🎯 Granular Creator Controls
+### 2) Structured Memory Deduplication
 
-- **Topic Seed:** Hard-steer the AI by providing exact topics (e.g., "Why smartphones destroy focus").
-- **Director Notes:** Pass explicit rules like "Avoid upbeat CTAs" or "Keep it deeply scientific."
-- **Niche & Tone:** Easily select from pre-configured niches and narration styles.
+ShortForge avoids repetitive content by maintaining **structured memory** of recent generated briefs.
 
-### 🔍 UI Transparency & Debugging
+It stores and reuses:
 
-- Inspect the **Locked Creative Brief (Stage 1)** directly in the dashboard to see exactly how the AI interpreted your instructions and what rules it forced upon itself before writing the script.
-- Review and regenerate scripts iteratively with a single click.
-- Discard incomplete projects effortlessly to speed up testing loops.
+- `coreTopic`
+- `contentAngle`
+- `requiredAnchors`
+- `endingStyle`
 
-## Tech Stack
+This enables:
 
-- **Framework:** Next.js 14+ (App Router, Server Actions)
-- **Database:** PostgreSQL (Neon) via Prisma ORM
-- **AI Integration:** Google Gemini 3.1 Flash-Lite (Structured JSON output)
-- **Validation:** Zod
-- **Styling:** Tailwind CSS & Lucide Icons
+- **duplicate topic avoidance** when the user gives only a broad niche
+- **fresh execution of repeated topics** when the user intentionally requests a similar topic again
 
-## Getting Started
+---
 
-1. Clone the repository and install dependencies (`npm install`).
-2. Set up your `.env` file with your `DATABASE_URL` and AI API keys.
-3. Run `npx prisma db push` and `npx prisma generate` to initialize the database.
-4. Run `npm run dev` to start the dashboard!
+### 3) Scene-Level Video Planning
+
+Every generated script is broken into scenes with:
+
+- narration text
+- on-screen caption
+- visual prompt
+- visual intent
+- visual role
+- structured asset search plan
+- scene duration
+
+The AI acts as both **scriptwriter and director**, planning:
+
+- pacing
+- beat-based cuts
+- visual variety
+- final CTA / emotional payoff scene behavior
+
+---
+
+### 4) Smart Asset Retrieval Pipeline
+
+For each scene, the platform generates **ordered asset fallback queries** for stock media retrieval.
+
+Each scene can define:
+
+- primary video query
+- fallback video query
+- fallback image query
+
+This improves visual relevance and reduces bad stock matches.
+
+Current asset source:
+
+- **Pexels API**
+
+---
+
+### 5) Automated Voiceover + Subtitle Rendering
+
+ShortForge automatically generates narration and subtitles for each scene.
+
+#### Voiceover
+
+- Uses **Microsoft Edge TTS**
+- No paid TTS API required
+
+#### Subtitles
+
+- Generates styled subtitles using **`.ass` subtitle rendering**
+- Supports:
+  - better wrapping
+  - stronger readability
+  - modern subtitle styling for Shorts
+
+---
+
+### 6) Video Composition Pipeline
+
+The platform composes the final Short by combining:
+
+- stock footage / images
+- generated scene timings
+- TTS narration
+- subtitles
+- transitions / overlays
+
+Rendering is handled with:
+
+- **FFmpeg**
+
+---
+
+### 7) YouTube Publishing Integration
+
+ShortForge can directly publish generated Shorts to YouTube.
+
+Features include:
+
+- YouTube OAuth connection
+- direct upload/publish flow
+- project-level publish state tracking
+- analytics-ready storage of published video metadata
+
+---
+
+### 8) Hybrid Analytics Dashboard
+
+The analytics dashboard combines:
+
+#### Internal pipeline analytics
+
+- total projects
+- completed pipelines
+- success rate
+- niche distribution
+- recent activity trends
+
+#### YouTube performance analytics
+
+- published video list
+- views
+- likes
+- comments
+- top-performing videos
+
+---
+
+### 9) Mobile-Responsive Dashboard
+
+The dashboard was refactored with a mobile-first responsive pass:
+
+- mobile drawer navigation
+- stacked mobile cards instead of broken tables
+- responsive forms
+- mobile-friendly analytics
+- collapsible Scene Inspector
+- sticky mobile action bars where needed
+
+---
+
+# 🧠 Core Architecture
+
+## Two-Stage AI Script Pipeline
+
+### **Stage 1 — Creative Brief Lock**
+
+The first AI call converts raw user inputs into a structured **Creative Brief**.
+
+It locks:
+
+- `coreTopic`
+- `audienceContext`
+- `contentAngle`
+- `requiredAnchors`
+- `forbiddenDriftTopics`
+- `contentConstraints`
+- `endingStyle`
+- `visualExpectations`
+
+This prevents the model from drifting into generic adjacent content.
+
+---
+
+### **Stage 2 — Script + Scene Generation**
+
+The second AI call consumes the locked Creative Brief and generates:
+
+- hook
+- body text
+- CTA
+- metadata
+- scene breakdown
+- narration text
+- captions
+- visual planning
+- asset retrieval queries
+
+Stage 2 is intentionally **blind to topic selection** and acts only as a strict brief executor.
+
+---
+
+## Structured Memory Deduplication Logic
+
+ShortForge uses **Stage 1 structured memory** to prevent repetitive videos.
+
+### If the user does **not** provide a specific topic
+
+- the AI must choose a **fresh core topic**
+- it avoids recently used topics from prior creative briefs
+
+### If the user **does** provide a specific topic
+
+- the AI must keep the requested topic
+- but it must vary execution using at least two of:
+  - content angle
+  - anchors/examples
+  - ending style
+  - visual expectations
+
+---
+
+# 🛠 Tech Stack
+
+## Frontend
+
+- **Next.js**
+- **React**
+- **TypeScript**
+- **Tailwind CSS**
+
+## Backend / Data
+
+- **Prisma**
+- **PostgreSQL / SQL database**
+
+## AI / Automation
+
+- **Google Gemini API** — structured script + creative brief generation
+- **Microsoft Edge TTS** — narration generation
+- **Pexels API** — stock media retrieval
+- **FFmpeg** — video composition
+- **YouTube Data API** — publishing + video metrics
+
+## Visualization / UI
+
+- **Recharts** — analytics dashboard charts
+
+---
+
+# 📦 Main Workflow
+
+## 1. Create a Project
+
+User provides:
+
+- niche
+- tone
+- duration
+- optional specific topic
+- optional creator instructions
+
+## 2. Generate Creative Brief
+
+AI normalizes the request into a locked creative brief.
+
+## 3. Generate Script + Scenes
+
+AI generates:
+
+- hook / body / CTA
+- scene-by-scene narration
+- captions
+- visual roles
+- asset queries
+
+## 4. Generate Voiceover
+
+Each scene receives TTS narration with accurate duration parsing.
+
+## 5. Fetch Visual Assets
+
+Scene asset plans are used to retrieve stock videos/images.
+
+## 6. Generate Subtitles
+
+Subtitle files are created and styled for readability.
+
+## 7. Compose Final Video
+
+FFmpeg combines:
+
+- visuals
+- audio
+- subtitles
+- timing
+
+## 8. Publish to YouTube
+
+The final Short can be uploaded directly to YouTube.
+
+## 9. Track Analytics
+
+The dashboard displays:
+
+- internal pipeline metrics
+- live YouTube performance metrics
+
+---
+
+# 📊 Dashboard Modules
+
+- **Projects** — create and manage content pipelines
+- **Project Details** — inspect scripts, scenes, assets, and status
+- **Analytics** — pipeline + YouTube performance
+- **Settings** — YouTube connection and platform configuration
+- **Archive** — completed / older projects
+
+---
+
+# 🚀 Future Improvements
+
+Potential next upgrades:
+
+- multi-platform export (Instagram Reels / TikTok)
+- advanced YouTube analytics (watch time, retention, CTR)
+- branded subtitle themes / templates
+- multi-voice narration options
+- AI-generated thumbnails
+- manual scene editing before export
+- approval workflow before publishing
+- scheduling / queueing system
+- webhook / cron-based automation
+
+---
+
+# ⚠️ Current Limitations
+
+- Stock footage quality depends on external search results and media availability
+- Script quality depends on prompt quality and topic specificity
+- YouTube analytics currently focus on practical video-level metrics, not full advanced channel analytics
+- Fully automated content still benefits from human review before large-scale publishing
+
+---
+
+# 💡 Why I Built This
+
+ShortForge was built as a full-stack AI automation project to explore how generative AI, structured prompting, media pipelines, and publishing integrations can be combined into a real creator workflow product.
+
+Instead of building a simple “script generator,” the goal was to design a system that behaves more like an **AI production pipeline**:
+
+- it understands creative constraints,
+- remembers past topics,
+- plans visuals scene-by-scene,
+- generates assets and narration,
+- renders final videos,
+- and publishes them directly to YouTube.
+
+---
+
+# 📷 Screenshots / Demo
+
+_Add screenshots, GIFs, or demo links here._
+
+Examples:
+
+- Dashboard
+- Project creation flow
+- Scene Inspector
+- Analytics page
+- Settings / YouTube connection
+- Final generated Short sample
+
+---
+
+# ⚙️ Setup
+
+**1. Clone the repository**
+
+```bash
+git clone <your-repo-url>
+cd AI-Powered-Faceless-Content-Automation-Platform-for-YouTube-Shorts
+npm install
+```
+
+**2. Configure Environment Variables**
+Create a `.env` file in the root directory with the following required keys:
+
+```env
+DATABASE_URL=
+GEMINI_API_KEY=
+PEXELS_API_KEY=
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=
+
+NEXTAUTH_SECRET=
+NEXTAUTH_URL=
+```
+
+**3. Initialize Database & Run**
+
+```bash
+npx prisma db push
+npm run dev
+```
+
+---
+
+**👨‍💻 Author:** Md Noor Hasan Ansari

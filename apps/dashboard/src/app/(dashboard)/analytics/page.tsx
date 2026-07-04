@@ -71,7 +71,7 @@ export default async function AnalyticsPage() {
             <h3 className="text-lg font-semibold text-slate-900">Top Performing Videos</h3>
           </div>
           
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto hidden md:block">
             <table className="w-full text-left text-sm text-slate-600">
               <thead className="bg-slate-50 text-slate-500 font-medium">
                 <tr>
@@ -130,6 +130,56 @@ export default async function AnalyticsPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Stacked Cards */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {youtube.topVideos.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 text-sm">
+                No published videos available to track.
+              </div>
+            ) : (
+              youtube.topVideos.map((video) => (
+                <div key={video.id} className="p-4 space-y-3">
+                  <div className="flex gap-3">
+                    {video.thumbnail ? (
+                      <img src={video.thumbnail} alt={video.title} className="w-20 h-28 object-cover rounded shadow-sm shrink-0" />
+                    ) : (
+                      <div className="w-20 h-28 bg-slate-200 rounded shadow-sm flex items-center justify-center shrink-0">
+                        <Film size={20} className="text-slate-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0 flex flex-col">
+                      <p className="font-semibold text-slate-900 text-sm leading-tight line-clamp-2 mb-1" title={video.title}>
+                        {video.title}
+                      </p>
+                      <p className="text-xs text-slate-400 mb-3">
+                        Published {video.publishedAt.toLocaleDateString()}
+                      </p>
+                      
+                      <div className="grid grid-cols-2 gap-2 mt-auto">
+                        <div className="bg-slate-50 rounded p-2 border border-slate-100">
+                          <p className="text-[10px] text-slate-500 uppercase font-semibold">Views</p>
+                          <p className="font-bold text-slate-800 text-sm">{video.views.toLocaleString()}</p>
+                        </div>
+                        <div className="bg-slate-50 rounded p-2 border border-slate-100">
+                          <p className="text-[10px] text-slate-500 uppercase font-semibold">Likes</p>
+                          <p className="font-bold text-slate-800 text-sm">{video.likes.toLocaleString()}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <a 
+                    href={`https://youtube.com/shorts/${video.youtubeId}`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <ExternalLink size={14} /> Watch on YouTube
+                  </a>
+                </div>
+              ))
+            )}
           </div>
         </div>
 

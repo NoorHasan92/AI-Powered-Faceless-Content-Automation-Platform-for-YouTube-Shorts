@@ -6,12 +6,15 @@ import { cookies } from "next/headers";
 import { getConnectedYouTubeChannel } from "@/services/youtube.service";
 import UpdatePasswordForm from "@/components/auth/UpdatePasswordForm";
 import { logoutAction } from "@/actions/auth.actions";
+import { disconnectYouTubeAction } from "@/actions/youtube.actions";
 import SubmitButton from "@/components/ui/SubmitButton";
+import VisibilitySelect from "@/components/settings/VisibilitySelect";
 
 export default async function SettingsPage() {
   const cookieStore = await cookies();
   const ytAccessToken = cookieStore.get("yt_access_token")?.value;
   const ytRefreshToken = cookieStore.get("yt_refresh_token")?.value;
+  const ytVisibility = cookieStore.get("yt_default_visibility")?.value as "public" | "private" | "unlisted" || "private";
 
   const hasGemini = !!process.env.GEMINI_API_KEY;
   const hasPexels = !!process.env.PEXELS_API_KEY;
@@ -27,20 +30,20 @@ export default async function SettingsPage() {
       description: "Manage your AI and platform integration keys (configured via .env).",
       icon: Key,
       items: [
-        { 
-          label: "Google Gemini API Key", 
-          status: hasGemini ? "Connected" : "Not Connected", 
-          statusColor: hasGemini ? "text-green-600 bg-green-50" : "text-red-600 bg-red-50" 
+        {
+          label: "Google Gemini API Key",
+          status: hasGemini ? "Connected" : "Not Connected",
+          statusColor: hasGemini ? "text-green-600 bg-green-50" : "text-red-600 bg-red-50"
         },
-        { 
-          label: "Pexels API Key (Assets)", 
-          status: hasPexels ? "Connected" : "Not Connected", 
-          statusColor: hasPexels ? "text-green-600 bg-green-50" : "text-red-600 bg-red-50" 
+        {
+          label: "Pexels API Key (Assets)",
+          status: hasPexels ? "Connected" : "Not Connected",
+          statusColor: hasPexels ? "text-green-600 bg-green-50" : "text-red-600 bg-red-50"
         },
-        { 
-          label: "Microsoft Edge TTS", 
-          status: "Built-in (No Key Needed)", 
-          statusColor: "text-blue-600 bg-blue-50" 
+        {
+          label: "Microsoft Edge TTS",
+          status: "Built-in (No Key Needed)",
+          statusColor: "text-blue-600 bg-blue-50"
         },
       ],
     },
@@ -49,28 +52,39 @@ export default async function SettingsPage() {
       description: "Connect your YouTube channel for automated publishing.",
       icon: MonitorPlay,
       items: [
-        { 
-          label: ytChannel ? ytChannel.title : "Channel Connection", 
-          status: ytAccessToken ? "Connected" : "Not Linked", 
+        {
+          label: ytChannel ? ytChannel.title : "Channel Connection",
+          status: ytAccessToken ? "Connected" : "Not Linked",
           statusColor: ytAccessToken ? "text-green-600 bg-green-50" : "text-slate-500 bg-slate-100",
           thumbnail: ytChannel?.thumbnail
         },
-        { 
-          label: "Default Visibility", 
-          status: "Private", 
-          statusColor: "text-blue-600 bg-blue-50" 
+        {
+          label: "Default Visibility",
+          isComponent: true,
+          component: <VisibilitySelect initialVisibility={ytVisibility} />
         },
       ],
       action: !ytAccessToken ? (
         <div className="px-5 pb-5">
-          <a 
+          <a
             href="/api/auth/youtube"
             className="inline-flex items-center justify-center gap-2 w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg text-sm transition-colors shadow-sm"
           >
             <Video size={16} /> Connect YouTube Account
           </a>
         </div>
-      ) : null
+      ) : (
+        <div className="px-5 pb-5 border-t border-slate-100 pt-5 mt-2">
+          <form action={disconnectYouTubeAction}>
+            <SubmitButton
+              pendingText="Disconnecting..."
+              className="inline-flex items-center justify-center gap-2 w-full sm:w-auto bg-white border border-slate-300 hover:bg-red-50 hover:text-red-700 hover:border-red-200 text-slate-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors shadow-sm cursor-pointer"
+            >
+              Disconnect Account
+            </SubmitButton>
+          </form>
+        </div>
+      )
     },
   ];
 
@@ -112,9 +126,13 @@ export default async function SettingsPage() {
                     )}
                     <span className="text-sm font-medium text-slate-700">{item.label}</span>
                   </div>
-                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${item.statusColor}`}>
-                    {item.status}
-                  </span>
+                  {item.isComponent ? (
+                    item.component
+                  ) : (
+                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${item.statusColor}`}>
+                      {item.status}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>

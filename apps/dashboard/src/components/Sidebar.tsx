@@ -23,9 +23,7 @@ export default function Sidebar() {
     <div className="w-64 h-screen bg-slate-900 text-white flex flex-col border-r border-slate-800 shrink-0">
       <div className="p-6 border-b border-slate-800">
         <h1 className="text-xl font-bold flex items-center gap-2.5">
-          <div className="p-1.5 bg-blue-600 rounded-lg">
-            <PlaySquare size={20} />
-          </div>
+          <img src="/icon.svg" alt="ShortForge" className="w-7 h-7" />
           ShortForge
         </h1>
         <p className="text-[11px] text-slate-500 mt-1.5 ml-[38px]">AI Video Pipeline</p>

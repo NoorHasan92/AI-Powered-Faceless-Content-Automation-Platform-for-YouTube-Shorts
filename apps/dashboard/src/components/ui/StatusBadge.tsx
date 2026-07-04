@@ -3,14 +3,15 @@ import { PROJECT_STATUS_CONFIG } from "@/lib/constants";
 
 interface StatusBadgeProps {
   status: string;
+  className?: string;
 }
 
-export default function StatusBadge({ status }: StatusBadgeProps) {
+export default function StatusBadge({ status, className = "" }: StatusBadgeProps) {
   const config = PROJECT_STATUS_CONFIG[status] || PROJECT_STATUS_CONFIG.DRAFT;
   
   return (
     <span
-      className={`px-3 py-1 rounded-full text-xs font-semibold tracking-wide ${config.className}`}
+      className={`px-3 py-1 rounded-full text-xs font-semibold tracking-wide ${config.className} ${className}`}
     >
       {config.label}
     </span>

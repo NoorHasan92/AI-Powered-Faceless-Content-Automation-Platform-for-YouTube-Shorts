@@ -60,6 +60,7 @@ export async function uploadToYouTube(
   exportJobId: string,
   accessToken: string,
   refreshToken: string,
+  privacyStatus: "public" | "private" | "unlisted" = "private"
 ): Promise<ServiceResult<Video>> {
   try {
     // 1. Get export job and project data
@@ -116,7 +117,7 @@ export async function uploadToYouTube(
           defaultLanguage: "en",
         },
         status: {
-          privacyStatus: "public", // Publish directly to the public
+          privacyStatus, // Use dynamic setting instead of hardcoded public
           selfDeclaredMadeForKids: false,
         },
       },

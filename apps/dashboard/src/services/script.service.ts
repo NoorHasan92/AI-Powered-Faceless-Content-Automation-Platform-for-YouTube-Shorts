@@ -7,6 +7,7 @@ import type { ServiceResult } from "@/lib/types";
 import { generateStructuredContent } from "./ai/gemini";
 import { buildCreativeBriefPrompt, buildScriptPrompt } from "./ai/prompts";
 import { scriptResponseSchema, creativeBriefSchema } from "@/validations/script.schema";
+import { normalizeSceneVisualRouting } from "./script/visual-routing-normalizer";
 import type { Script } from "@prisma/client";
 
 /**
@@ -29,8 +30,8 @@ export async function generateScript(
   creatorInstructions?: string | null
 ): Promise<ServiceResult<Script>> {
   try {
-    // 1. Mark as in-progress
-    await prisma.project.update({
+    // 1. Mark as in-progress and fetch project budget settings
+    const project = await prisma.project.update({
       where: { id: projectId },
       data: { status: "GENERATING_SCRIPT" },
     });
@@ -87,6 +88,12 @@ export async function generateScript(
       creativeBrief,
       targetDuration
     );
+    
+    // TEMPORARY LOGGING FOR DEBUGGING ROUTING RULES
+    console.log("=== STAGE 2 PROMPT START ===");
+    console.log(scriptPrompt);
+    console.log("=== STAGE 2 PROMPT END ===");
+
     const rawData = await generateStructuredContent(scriptPrompt);
 
     // 4. Validate with Zod — replaces the old manual validateAIResponse()
@@ -99,7 +106,19 @@ export async function generateScript(
       throw new Error(`AI response validation failed: ${errors}`);
     }
 
-    const aiData = parseResult.data;
+    const aiData = normalizeSceneVisualRouting(parseResult.data, {
+      maxAiImageScenes: project.maxAiImageScenes,
+      preferredMotionRatio: project.preferredMotionRatio,
+      aiImageFallbackDisabled: project.aiImageFallbackDisabled,
+      projectNiche: project.niche
+    });
+
+    // TEMPORARY LOGGING FOR DEBUGGING ROUTING RULES
+    console.log("=== NORMALIZED SCENES START ===");
+    aiData.scenes.forEach((scene, index) => {
+      console.log(`[Scene ${index + 1}] source=${scene.visualSource || 'UNSET'} role=${scene.visualRole || 'UNSET'} caption="${scene.onScreenCaption}"`);
+    });
+    console.log("=== NORMALIZED SCENES END ===");
 
     // 6. Persist to database (including the generated brief)
     const script = await prisma.script.create({
@@ -121,6 +140,14 @@ export async function generateScript(
             searchKeywords: scene.searchKeywords,
             assetSearches: scene.assetSearches,
             duration: scene.duration,
+            visualRole: scene.visualRole as any,
+            visualSource: (scene.visualSource as any) || "STOCK_VIDEO",
+            visualSourcePlanned: (scene as any).visualSourcePlanned || null,
+            motionTreatment: (scene as any).motionTreatment || "NONE",
+            routingDowngradeReason: (scene as any).routingDowngradeReason || null,
+            generatedAssetPrompt: scene.generatedAssetPrompt,
+            infographicPayload: scene.infographicPayload,
+            endingIntent: scene.endingIntent as any,
           })),
         },
       },

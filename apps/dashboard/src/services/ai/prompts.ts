@@ -99,6 +99,11 @@ ${brief.contentConstraints.map(c => `- ${c}`).join("\n")}
 Visual Expectations: ${brief.visualExpectations}
 Tone Guidance: ${brief.toneGuidance}
 Duration Guidance: ${brief.durationGuidance}
+
+--- VISUAL EXPECTATIONS OVERRIDE ---
+The Creator explicitly provided this visual direction:
+"${brief.visualExpectations}"
+You MUST heavily bias your \`visualRole\` and \`visualSource\` selections to satisfy these instructions. If the notes request surreal, abstract, internal brain activity, or impossible-to-film imagery, you MUST use \`AI_IMAGE\` aggressively instead of stock footage.
 ----------------------
 
 Target Duration (strict): ${targetDuration}
@@ -113,31 +118,36 @@ You must return ONLY a raw JSON object matching this exact structure:
   "estimatedDuration": 35,
   "scenes": [
     {
-      "narrationText": "The exact words spoken in this scene",
-      "visualPrompt": "A highly detailed prompt for an AI video generator (e.g., 'Cinematic 4k shot of a glowing jellyfish, dark ocean background, neon colors')",
-      "visualIntent": "Explain the goal of the visual, e.g., 'show how environment affects behavior in a realistic way'",
-      "onScreenCaption": "1-4 words of punchy text to display on screen",
-      "searchKeywords": ["keyword1", "keyword2", "keyword3"],
+      "narrationText": "The hippocampus acts like a temporal index, organizing our experiences.",
+      "visualPrompt": "A glowing, surreal 3D brain made of fiber optic cables pulsing with light.",
+      "visualIntent": "Abstract visualization of memory encoding in the brain.",
+      "onScreenCaption": "Memory Index",
+      "searchKeywords": ["brain", "memory", "synapse"],
       "assetSearches": [
-        {
-          "query": "scientist in laboratory looking at brain scan",
-          "type": "video",
-          "purpose": "primary"
-        },
-        {
-          "query": "brain scan research lab",
-          "type": "video",
-          "purpose": "fallback"
-        },
-        {
-          "query": "brain science illustration",
-          "type": "image",
-          "purpose": "fallback"
-        }
+        { "query": "brain illustration", "type": "video", "purpose": "primary" }
       ],
-      "visualRole": "LITERAL_FOOTAGE",
-      "endingIntent": "CTA",
+      "visualRole": "ABSTRACT_ANIMATION",
+      "visualSource": "AI_IMAGE",
+      "generatedAssetPrompt": "Cinematic macro shot of glowing neurons, synaptic flashes, ethereal blue lighting, 8k resolution.",
+      "infographicPayload": null,
+      "endingIntent": null,
       "duration": 4.5
+    },
+    {
+      "narrationText": "When this index misfires, it creates a latency error we call déjà vu.",
+      "visualPrompt": "A split-screen diagram comparing sensory input timing.",
+      "visualIntent": "Explain the delay in sensory processing.",
+      "onScreenCaption": "Latency Error",
+      "searchKeywords": ["signal processing", "timeline"],
+      "assetSearches": [
+        { "query": "diagram graphic", "type": "image", "purpose": "fallback" }
+      ],
+      "visualRole": "INFOGRAPHIC",
+      "visualSource": "INFOGRAPHIC",
+      "generatedAssetPrompt": null,
+      "infographicPayload": { "title": "Sensory Pathway", "data": "Timing mismatch" },
+      "endingIntent": null,
+      "duration": 4.0
     }
   ]
 }
@@ -151,14 +161,38 @@ Rules:
 - \`searchKeywords\` should be 2-4 broad relevant terms (light semantic tags).
 - \`assetSearches\` must be an ordered array of 3 specific asset retrieval queries, from highly specific to broad fallback. Valid types are "video" or "image".
 - \`visualRole\` must be one of: "LITERAL_FOOTAGE", "ABSTRACT_ANIMATION", "INFOGRAPHIC", "DEMONSTRATION", "TRANSITION".
+- \`visualSource\` must be one of: "STOCK_VIDEO", "STOCK_IMAGE", "AI_IMAGE", "INFOGRAPHIC".
+- **Scene Classification Rule**: Before assigning \`visualSource\`, you MUST mentally classify the scene into one of three buckets:
+  1. LITERAL_REAL_WORLD or ABSTRACT_CONNECTIVE_FILLER
+  2. EXPLANATORY_MECHANISM (timelines, comparisons, step-by-step)
+  3. SURREAL_HERO_MOMENT (impossible to film, highly emotional/cinematic)
+  Then, you MUST apply this strict priority mapping:
+  - Prefer \`STOCK_VIDEO\` for literal action AND abstract/connective filler (e.g. glowing loops, abstract particles).
+  - Prefer \`INFOGRAPHIC\` for explanatory mechanisms, diagrams, timelines, or comparisons.
+  - Use \`AI_IMAGE\` ONLY for the most visually important surreal hero moments or impossible-to-film emotional climaxes.
+  - \`STOCK_IMAGE\` should only be used as a last resort fallback.
+- **Source Selection Rule (HARD ROUTING)**:
+  - Use \`STOCK_VIDEO\` as the primary workhorse. For literal scenes, use standard queries. For abstract scenes, use motion-friendly query templates (e.g., "glowing neural network loop", "abstract signal glitch animation", "fractal tunnel").
+  - Use \`INFOGRAPHIC\` when the scene primarily depicts percentages, comparisons, rankings, before/after logic, step-based explanations, mechanism diagrams, or process/timeline visuals.
+  - Use \`AI_IMAGE\` sparingly. It is a limited "hero scene" resource. Only use it when the scene is a central thesis or emotional climax that requires impossible visualizations.
+  - Use \`STOCK_IMAGE\` only when no motion-capable option is plausible.
+- **Role-Source Mapping**: 
+  - ABSTRACT_ANIMATION -> prefer STOCK_VIDEO (abstract loops) or AI_IMAGE (if hero scene)
+  - INFOGRAPHIC -> must use INFOGRAPHIC
+  - DEMONSTRATION / LITERAL_FOOTAGE -> strongly prefer STOCK_VIDEO
+  - TRANSITION -> prefer STOCK_VIDEO or INFOGRAPHIC
+- If \`visualSource\` is "AI_IMAGE", you MUST provide a detailed \`generatedAssetPrompt\` optimized for an AI Image generator (e.g. Flux/Midjourney). Otherwise leave it null.
+- If \`visualSource\` is "INFOGRAPHIC", provide a basic JSON in \`infographicPayload\` (e.g. {"title": "Fact"}). Otherwise leave it null.
 - You must shape the \`assetSearches\` queries based on the chosen \`visualRole\` (e.g., LITERAL_FOOTAGE -> direct real-world footage, ABSTRACT_ANIMATION -> conceptual visuals).
 - Do NOT use the same \`visualRole\` more than two scenes in a row. Maintain high visual variety.
-- **Pacing & Scene Beats:** Prefer short, fast-paced scenes for Shorts. Most scenes should land around 2–5 seconds unless the concept clearly needs more time. Never exceed 1-2 short sentences per scene. Require scene boundaries to strictly match natural sentence boundaries (no awkward mid-sentence scene cuts).
-- **Semantic Density:** If a single beat contains multiple unrelated or highly complex concepts, you MUST split it into two rapid consecutive scenes. If it cannot be split, you must select one overarching abstract thematic visual strategy for the scene, rather than attempting a combined 'frankenstein' query.
-- **Closing Scene Intelligence:** For the final scene, explicitly declare the \`endingIntent\` as one of: "CTA", "EMOTIONAL_PAYOFF", "PRACTICAL_ADVICE". Use this intent combined with \`visualRole\` to shape the final asset queries (e.g., an EMOTIONAL_PAYOFF intent paired with an ABSTRACT_ANIMATION visual role). For non-final scenes, omit \`endingIntent\` or leave it null.
-- **Anchor Coverage Rule:** You MUST preserve and repeat the 'Required Anchors' across multiple scenes, examples, and visual plans.
-- **Forbidden Drift:** You are strictly forbidden from writing about any of the 'Forbidden Drift Topics'.
-- **Content Constraints:** You must rigidly follow every rule listed in 'Content Constraints'.
-- **SELF-CHECK:** Review the brief. Does the script completely satisfy the core topic and constraints? If not, rewrite.
+- **Pacing & Scene Beats**: Prefer short, fast-paced scenes for Shorts. Most scenes should land around 2–5 seconds unless the concept clearly needs more time. Never exceed 1-2 short sentences per scene. Require scene boundaries to strictly match natural sentence boundaries (no awkward mid-sentence scene cuts).
+- **Semantic Density**: If a single beat contains multiple unrelated or highly complex concepts, you MUST split it into two rapid consecutive scenes. If it cannot be split, you must select one overarching abstract thematic visual strategy for the scene, rather than attempting a combined 'frankenstein' query.
+- **Closing Scene Intelligence**: For the final scene, explicitly declare the \`endingIntent\` as one of: "CTA", "EMOTIONAL_PAYOFF", "PRACTICAL_ADVICE".
+  - **Ending Intent -> Visual Source Override**: If \`endingIntent\` is "EMOTIONAL_PAYOFF" (e.g., existential themes, "question reality", "your brain is lying to you"), you MUST strongly default to \`visualRole = ABSTRACT_ANIMATION\` and \`visualSource = AI_IMAGE\`, unless the scene explicitly contains numbers, steps, comparisons, or mechanism diagrams. Do NOT use generic INFOGRAPHIC for emotional/existential ending scenes.
+  - For non-final scenes, omit \`endingIntent\` or leave it null.
+- **Anchor Coverage Rule**: You MUST preserve and repeat the 'Required Anchors' across multiple scenes, examples, and visual plans.
+- **Forbidden Drift**: You are strictly forbidden from writing about any of the 'Forbidden Drift Topics'.
+- **Content Constraints**: You must rigidly follow every rule listed in 'Content Constraints'.
+- **SELF-CHECK**: For each scene, ask: could a normal stock video library realistically contain a strong literal asset for this exact scene? If no, do not use STOCK_VIDEO. Use AI_IMAGE or INFOGRAPHIC instead. Finally, review the brief to ensure the script completely satisfies the core topic and constraints. If not, rewrite.
 `.trim();
 }

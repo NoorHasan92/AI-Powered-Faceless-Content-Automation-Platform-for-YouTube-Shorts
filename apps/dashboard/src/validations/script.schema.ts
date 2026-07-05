@@ -42,12 +42,39 @@ export const sceneSchema = z.object({
       "TRANSITION"
     ])
     .optional(),
-  endingIntent: z
+  visualSource: z
     .enum([
-      "CTA",
-      "EMOTIONAL_PAYOFF",
-      "PRACTICAL_ADVICE"
+      "STOCK_VIDEO",
+      "STOCK_IMAGE",
+      "AI_IMAGE",
+      "INFOGRAPHIC"
     ])
+    .optional(),
+  generatedAssetPrompt: z.string().optional().nullable(),
+  infographicPayload: z.any().optional().nullable(),
+  motionTreatment: z
+    .enum([
+      "NONE",
+      "KEN_BURNS",
+      "INFOGRAPHIC_MOTION",
+      "LOOP_VIDEO"
+    ])
+    .optional()
+    .nullable(),
+  routingDowngradeReason: z
+    .enum([
+      "AI_QUOTA",
+      "REPLICATE_402",
+      "REPLICATE_429",
+      "MOTION_SUBSTITUTION",
+      "NO_STOCK_VIDEO_FOUND",
+      "AI_DISABLED_FOR_PROJECT"
+    ])
+    .optional()
+    .nullable(),
+  endingIntent: z
+    .string()
+    .nullable()
     .optional(),
   onScreenCaption: z
     .string()

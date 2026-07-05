@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 import { getConnectedYouTubeChannel } from "@/services/youtube.service";
 import UpdatePasswordForm from "@/components/auth/UpdatePasswordForm";
 import { logoutAction } from "@/actions/auth.actions";
+import ConfirmAction from "@/components/ui/ConfirmAction";
 import { disconnectYouTubeAction } from "@/actions/youtube.actions";
 import SubmitButton from "@/components/ui/SubmitButton";
 import VisibilitySelect from "@/components/settings/VisibilitySelect";
@@ -75,14 +76,19 @@ export default async function SettingsPage() {
         </div>
       ) : (
         <div className="px-5 pb-5 border-t border-slate-100 pt-5 mt-2">
-          <form action={disconnectYouTubeAction}>
-            <SubmitButton
-              pendingText="Disconnecting..."
-              className="inline-flex items-center justify-center gap-2 w-full sm:w-auto bg-white border border-slate-300 hover:bg-red-50 hover:text-red-700 hover:border-red-200 text-slate-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors shadow-sm cursor-pointer"
-            >
-              Disconnect Account
-            </SubmitButton>
-          </form>
+          <ConfirmAction
+            action={disconnectYouTubeAction}
+            title="Disconnect YouTube"
+            description="Are you sure you want to disconnect your YouTube account? You won't be able to directly publish videos until you reconnect."
+            confirmText="Disconnect"
+            pendingText="Disconnecting..."
+            confirmVariant="warning"
+            trigger={
+              <button type="button" className="inline-flex items-center justify-center gap-2 w-full sm:w-auto bg-white border border-slate-300 hover:bg-red-50 hover:text-red-700 hover:border-red-200 text-slate-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors shadow-sm cursor-pointer">
+                Disconnect Account
+              </button>
+            }
+          />
         </div>
       )
     },
@@ -95,14 +101,19 @@ export default async function SettingsPage() {
           <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
           <p className="text-slate-500 mt-1">Configure your pipeline, API keys, and integrations.</p>
         </div>
-        <form action={logoutAction} className="w-full md:w-auto">
-          <SubmitButton
-            pendingText="Signing out..."
-            className="w-full md:w-auto justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2"
-          >
-            <LogOut size={16} /> Sign Out
-          </SubmitButton>
-        </form>
+        <ConfirmAction
+          action={logoutAction}
+          title="Sign Out"
+          description="Are you sure you want to sign out?"
+          confirmText="Sign Out"
+          pendingText="Signing out..."
+          confirmVariant="danger"
+          trigger={
+            <button type="button" className="w-full md:w-auto justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2">
+              <LogOut size={16} /> Sign Out
+            </button>
+          }
+        />
       </header>
 
       <div className="space-y-6">

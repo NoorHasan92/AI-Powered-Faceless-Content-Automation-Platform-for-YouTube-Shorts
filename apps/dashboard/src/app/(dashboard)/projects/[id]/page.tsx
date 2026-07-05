@@ -9,6 +9,7 @@ import { generateScriptAction } from "@/actions/script.actions";
 import { triggerExportAction } from "@/actions/export.actions";
 import { archiveProjectAction, deleteProjectAction, discardProjectAction } from "@/actions/project.actions";
 import SubmitButton from "@/components/ui/SubmitButton";
+import ConfirmAction from "@/components/ui/ConfirmAction";
 import StatusBadge from "@/components/ui/StatusBadge";
 import ScriptPanel from "@/components/script/ScriptPanel";
 import SceneInspector from "@/components/project/SceneInspector";
@@ -79,38 +80,53 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto mt-2 md:mt-0">
             <StatusBadge status={project.status} />
             {project.status === "COMPLETED" && !project.isArchived && (
-              <form action={archiveProjectAction.bind(null, project.id)} className="flex-1 md:flex-none">
-                <SubmitButton
-                  pendingText="Archiving..."
-                  className="w-full justify-center bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5"
-                >
-                  <Archive size={14} /> Archive
-                </SubmitButton>
-              </form>
+              <ConfirmAction
+                action={archiveProjectAction.bind(null, project.id)}
+                title="Archive Project"
+                description="Are you sure you want to archive this project? You can find it in the Archived tab later."
+                confirmText="Archive"
+                pendingText="Archiving..."
+                confirmVariant="warning"
+                trigger={
+                  <button type="button" className="w-full justify-center bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5">
+                    <Archive size={14} /> Archive
+                  </button>
+                }
+              />
             )}
             {project.status !== "COMPLETED" && !project.isArchived && (
-              <form action={discardProjectAction.bind(null, project.id)} className="flex-1 md:flex-none">
-                <SubmitButton
-                  pendingText="Discarding..."
-                  className="w-full justify-center bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5"
-                >
-                  <Trash2 size={14} /> Discard
-                </SubmitButton>
-              </form>
+              <ConfirmAction
+                action={discardProjectAction.bind(null, project.id)}
+                title="Discard Project"
+                description="Are you sure you want to discard this incomplete project? This will permanently delete the project and all its generated files. This action cannot be undone."
+                confirmText="Discard"
+                pendingText="Discarding..."
+                confirmVariant="danger"
+                trigger={
+                  <button type="button" className="w-full justify-center bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5">
+                    <Trash2 size={14} /> Discard
+                  </button>
+                }
+              />
             )}
             {project.isArchived && (
               <>
                 <span className="bg-slate-100 text-slate-500 border border-slate-200 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1">
                   <Archive size={12} /> Archived
                 </span>
-                <form action={deleteProjectAction.bind(null, project.id)} className="flex-1 md:flex-none">
-                  <SubmitButton
-                    pendingText="Deleting..."
-                    className="w-full justify-center bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5"
-                  >
-                    <Trash2 size={14} /> Delete
-                  </SubmitButton>
-                </form>
+                <ConfirmAction
+                  action={deleteProjectAction.bind(null, project.id)}
+                  title="Permanently Delete"
+                  description="Are you sure you want to permanently delete this project? All associated files and data will be removed forever. This action cannot be undone."
+                  confirmText="Delete Forever"
+                  pendingText="Deleting..."
+                  confirmVariant="danger"
+                  trigger={
+                    <button type="button" className="w-full justify-center bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 font-medium py-1.5 px-3 rounded-lg text-xs transition-colors shadow-sm flex items-center gap-1.5">
+                      <Trash2 size={14} /> Delete
+                    </button>
+                  }
+                />
               </>
             )}
           </div>

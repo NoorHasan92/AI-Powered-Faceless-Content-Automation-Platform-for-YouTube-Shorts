@@ -45,14 +45,54 @@ export default function SceneInspectorCard({ scene }: SceneInspectorCardProps) {
           <span className="text-slate-400 group-open:rotate-180 transition-transform">▼</span>
         </summary>
         <div className="space-y-3 mt-2">
-          {scene.visualRole && (
-            <div className="flex gap-2 items-center">
-              <span className="text-xs text-slate-500">Visual Role:</span>
-              <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded text-[11px] font-bold tracking-wide uppercase border border-amber-200">
-                {scene.visualRole}
-              </span>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-3">
+            {scene.visualRole && (
+              <div className="flex gap-2 items-center">
+                <span className="text-xs text-slate-500">Visual Role:</span>
+                <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded text-[11px] font-bold tracking-wide uppercase border border-amber-200">
+                  {scene.visualRole}
+                </span>
+              </div>
+            )}
+            {/* @ts-ignore */}
+            {scene.visualSourcePlanned && (
+              <div className="flex gap-2 items-center">
+                <span className="text-xs text-slate-500">Planned Source:</span>
+                <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded text-[11px] font-bold tracking-wide uppercase border border-blue-200">
+                  {/* @ts-ignore */}
+                  {scene.visualSourcePlanned}
+                </span>
+              </div>
+            )}
+            {scene.visualSource && (
+              <div className="flex gap-2 items-center">
+                <span className="text-xs text-slate-500">Final Source:</span>
+                <span className="px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded text-[11px] font-bold tracking-wide uppercase border border-emerald-200">
+                  {scene.visualSource}
+                </span>
+              </div>
+            )}
+            {/* @ts-ignore */}
+            {scene.motionTreatment && (
+              <div className="flex gap-2 items-center">
+                <span className="text-xs text-slate-500">Motion:</span>
+                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded text-[11px] font-bold tracking-wide uppercase border border-indigo-200">
+                  {/* @ts-ignore */}
+                  {scene.motionTreatment}
+                </span>
+              </div>
+            )}
+            {/* @ts-ignore */}
+            {scene.routingDowngradeReason && (
+              <div className="flex gap-2 items-center">
+                <span className="text-xs text-red-500 font-bold">Downgrade:</span>
+                <span className="px-2 py-0.5 bg-red-50 text-red-700 rounded text-[11px] font-bold tracking-wide uppercase border border-red-200">
+                  {/* @ts-ignore */}
+                  {scene.routingDowngradeReason}
+                </span>
+              </div>
+            )}
+          </div>
 
           {scene.endingIntent && (
             <div className="flex gap-2 items-center">
@@ -100,6 +140,27 @@ export default function SceneInspectorCard({ scene }: SceneInspectorCardProps) {
               </div>
             </div>
           )}
+
+          {/* @ts-ignore */}
+          {scene.generatedAssetPrompt && (
+            <div className="space-y-1">
+              <span className="text-xs text-slate-500">Generated Asset Prompt:</span>
+              <div className="text-xs p-2 rounded border bg-slate-50 text-slate-600 italic">
+                {/* @ts-ignore */}
+                "{scene.generatedAssetPrompt}"
+              </div>
+            </div>
+          )}
+          {/* @ts-ignore */}
+          {scene.infographicPayload && (
+            <div className="space-y-1">
+              <span className="text-xs text-slate-500">Infographic Payload:</span>
+              <pre className="text-[10px] p-2 rounded border bg-slate-50 text-slate-600 overflow-x-auto max-h-32">
+                {/* @ts-ignore */}
+                {JSON.stringify(scene.infographicPayload, null, 2)}
+              </pre>
+            </div>
+          )}
         </div>
       </details>
 
@@ -120,8 +181,16 @@ export default function SceneInspectorCard({ scene }: SceneInspectorCardProps) {
                   <span className="text-white text-[10px] uppercase font-bold">Video</span>
                 </div>
               )}
-              <div className="text-xs text-slate-600 space-y-1 min-w-0">
-                <p><span className="font-semibold text-slate-800">Status:</span> {asset.status}</p>
+              <div className="text-xs text-slate-600 space-y-1 min-w-0 w-full">
+                <div className="flex justify-between items-start gap-2">
+                  <p><span className="font-semibold text-slate-800">Status:</span> {asset.status}</p>
+                  {/* @ts-ignore */}
+                  {scene.visualSource === "AI_IMAGE" && asset.type.startsWith("STOCK_") && (
+                    <span className="px-1.5 py-0.5 bg-orange-100 text-orange-700 rounded text-[10px] font-bold uppercase shrink-0" title="AI Image generation failed, fell back to stock">
+                      ⚠️ Fallback
+                    </span>
+                  )}
+                </div>
                 <p><span className="font-semibold text-slate-800">Type:</span> {asset.type}</p>
                 <p className="truncate"><span className="font-semibold text-slate-800">Query:</span> {asset.searchQuery || "N/A"}</p>
                 <p className="truncate" title={asset.sourceUrl}><span className="font-semibold text-slate-800">Source:</span> <a href={asset.sourceUrl} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">Link</a></p>

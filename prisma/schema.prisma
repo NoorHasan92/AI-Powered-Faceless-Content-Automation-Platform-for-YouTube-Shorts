@@ -44,10 +44,33 @@ enum VisualRole {
   TRANSITION
 }
 
+enum VisualSource {
+  STOCK_VIDEO
+  STOCK_IMAGE
+  AI_IMAGE
+  INFOGRAPHIC
+}
+
 enum EndingIntent {
   CTA
   EMOTIONAL_PAYOFF
   PRACTICAL_ADVICE
+}
+
+enum MotionTreatment {
+  NONE
+  KEN_BURNS
+  INFOGRAPHIC_MOTION
+  LOOP_VIDEO
+}
+
+enum RoutingDowngradeReason {
+  AI_QUOTA
+  REPLICATE_402
+  REPLICATE_429
+  MOTION_SUBSTITUTION
+  NO_STOCK_VIDEO_FOUND
+  AI_DISABLED_FOR_PROJECT
 }
 
 // ---------------------------------------------------------------------------
@@ -75,6 +98,9 @@ model Project {
   updatedAt   DateTime      @updatedAt
 
   isArchived  Boolean       @default(false)
+  aiImageFallbackDisabled Boolean @default(false)
+  maxAiImageScenes Int @default(2)
+  preferredMotionRatio Float @default(0.7)
 
   script      Script?
   videos      Video[]
@@ -110,6 +136,12 @@ model Scene {
   searchKeywords  String[]           // For stock asset search queries (light tags)
   assetSearches   Json?              // Structured ordered retrieval plan
   visualRole      VisualRole?        // The selected visual presentation mode
+  visualSource    VisualSource       @default(STOCK_VIDEO)
+  visualSourcePlanned VisualSource?
+  motionTreatment MotionTreatment?   @default(NONE)
+  routingDowngradeReason RoutingDowngradeReason?
+  generatedAssetPrompt String?       @db.Text
+  infographicPayload   Json?
   endingIntent    EndingIntent?      // (Used primarily on the final scene) Intent of the beat
   duration        Float    @default(0.0) // Set after TTS audio generation
 

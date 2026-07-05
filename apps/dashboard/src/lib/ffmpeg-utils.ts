@@ -86,6 +86,36 @@ export async function composeScene(options: {
           "-pix_fmt", "yuv420p",
           "-shortest",
         ]);
+    } else if (assetType === "AI_IMAGE") {
+      // AI Image asset: Apply subtle motion (Ken Burns zoompan)
+      command
+        // zoompan generates frames from a single input image, no need for -loop 1
+        .input(assetPath)
+        .input(audioPath);
+
+      const frames = Math.ceil(audioDuration * 30) + 30; // Add 1 sec buffer
+
+      command
+        .complexFilter([
+          // Scale to fit, crop, then zoompan from center
+          `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='min(zoom+0.001,1.15)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30[bg]`,
+          textFilters,
+          `[1:a]afade=t=in:st=0:d=0.1,afade=t=out:st=${Math.max(0, audioDuration - 0.2)}:d=0.2[outa]`
+        ])
+        .outputOptions([
+          "-map", "[outv]",
+          "-map", "[outa]",
+          "-t", String(audioDuration),
+          "-c:v", "libx264",
+          "-preset", "fast",
+          "-b:v", "8M",
+          "-maxrate", "8M",
+          "-bufsize", "16M",
+          "-c:a", "aac",
+          "-b:a", "192k",
+          "-pix_fmt", "yuv420p",
+          "-shortest",
+        ]);
     } else {
       // Image asset: create a video from a still image with audio
       command

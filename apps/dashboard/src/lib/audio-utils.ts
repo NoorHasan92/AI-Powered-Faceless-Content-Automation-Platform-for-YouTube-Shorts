@@ -16,17 +16,28 @@ export function ensureDir(dirPath: string): void {
 
 /**
  * Get the base output directory for pipeline artifacts.
- * Uses `public/pipeline/` so files are servable by Next.js.
+ * Uses `/var/tars-data` for local temporary working files on the server.
  */
 export function getPipelineDir(): string {
-  return path.join(process.cwd(), "public", "pipeline");
+  const dir = "/var/tars-data";
+  ensureDir(dir);
+  return dir;
+}
+
+/**
+ * Get the project-specific base pipeline directory.
+ */
+export function getProjectPipelineDir(projectId: string): string {
+  const dir = path.join(getPipelineDir(), projectId);
+  ensureDir(dir);
+  return dir;
 }
 
 /**
  * Get the audio output directory for a specific project.
  */
 export function getAudioDir(projectId: string): string {
-  const dir = path.join(getPipelineDir(), projectId, "audio");
+  const dir = path.join(getProjectPipelineDir(projectId), "audio");
   ensureDir(dir);
   return dir;
 }
@@ -35,7 +46,7 @@ export function getAudioDir(projectId: string): string {
  * Get the assets output directory for a specific project.
  */
 export function getAssetsDir(projectId: string): string {
-  const dir = path.join(getPipelineDir(), projectId, "assets");
+  const dir = path.join(getProjectPipelineDir(projectId), "assets");
   ensureDir(dir);
   return dir;
 }
@@ -44,19 +55,9 @@ export function getAssetsDir(projectId: string): string {
  * Get the exports output directory for a specific project.
  */
 export function getExportsDir(projectId: string): string {
-  const dir = path.join(getPipelineDir(), projectId, "exports");
+  const dir = path.join(getProjectPipelineDir(projectId), "exports");
   ensureDir(dir);
   return dir;
-}
-
-/**
- * Convert an absolute file path to a URL path servable by Next.js.
- * e.g., C:\...\public\pipeline\abc\audio\scene-0.mp3 → /pipeline/abc/audio/scene-0.mp3
- */
-export function toPublicUrl(absolutePath: string): string {
-  const publicDir = path.join(process.cwd(), "public");
-  const relative = path.relative(publicDir, absolutePath).replace(/\\/g, "/");
-  return `/${relative}`;
 }
 
 /**

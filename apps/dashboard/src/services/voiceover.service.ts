@@ -8,7 +8,8 @@ import type { Voiceover } from "@prisma/client";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
 import fs from "fs";
 import path from "path";
-import { getAudioDir, toPublicUrl } from "@/lib/audio-utils";
+import { getAudioDir } from "@/lib/audio-utils";
+import { uploadAudioToCloudinary } from "@/lib/cloudinary-upload";
 
 import mp3Duration from "mp3-duration";
 
@@ -76,8 +77,8 @@ export async function generateVoiceovers(projectId: string): Promise<ServiceResu
         });
       });
 
-      // Convert to public URL
-      const publicUrl = toPublicUrl(audioFilePath);
+      // Upload to Cloudinary
+      const upload = await uploadAudioToCloudinary(audioFilePath, projectId, scene.sceneIndex);
 
       // Create Voiceover record in DB
       const voiceover = await prisma.voiceover.create({
@@ -85,7 +86,7 @@ export async function generateVoiceovers(projectId: string): Promise<ServiceResu
           sceneId: scene.id,
           provider: "msedge-tts",
           voiceId: ttsVoice,
-          audioUrl: publicUrl,
+          audioUrl: upload.secure_url,
           localPath: audioFilePath,
           duration,
           status: "COMPLETED",

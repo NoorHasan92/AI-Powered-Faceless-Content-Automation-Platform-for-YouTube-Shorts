@@ -1,12 +1,14 @@
 // File Location: src/services/export.service.ts
 // Real video export pipeline using FFmpeg.
-// Composes scene clips (visual + audio + subtitles) and concatenates into a final MP4.
+// Composes scene clips (visual + audio + subtitles), concatenates into a final MP4,
+// then uploads the final video to Cloudinary.
 
 import { prisma } from "@/lib/prisma";
 import type { ServiceResult } from "@/lib/types";
 import type { ExportJob } from "@prisma/client";
 import { composeScene, concatenateScenes } from "@/lib/ffmpeg-utils";
-import { getExportsDir, toPublicUrl } from "@/lib/audio-utils";
+import { getExportsDir } from "@/lib/audio-utils";
+import { uploadVideoToCloudinary } from "@/lib/cloudinary-upload";
 import fs from "fs";
 import path from "path";
 
@@ -17,7 +19,8 @@ import path from "path";
  * 1. Gather all scene data (voiceover audio, visual asset, subtitle text)
  * 2. For each scene: compose a clip via FFmpeg (image/video + audio + caption)
  * 3. Concatenate all clips into one final MP4
- * 4. Update ExportJob record with real output path and duration
+ * 4. Upload final MP4 to Cloudinary
+ * 5. Update ExportJob + Video record
  */
 export async function triggerExport(
   projectId: string
@@ -68,10 +71,19 @@ export async function triggerExport(
     // 3. Validate that all scenes have required data
     for (const scene of scenes) {
       if (!scene.voiceover?.localPath || !fs.existsSync(scene.voiceover.localPath)) {
-        throw new Error(`Scene ${scene.sceneIndex + 1} is missing voiceover audio. Generate voiceovers first.`);
+        throw new Error(
+          `Scene ${scene.sceneIndex + 1} is missing voiceover audio. Generate voiceovers first.`
+        );
       }
-      if (!scene.assets.length || !scene.assets[0].localPath || !fs.existsSync(scene.assets[0].localPath)) {
-        throw new Error(`Scene ${scene.sceneIndex + 1} is missing visual assets. Generate assets first.`);
+
+      if (
+        !scene.assets.length ||
+        !scene.assets[0].localPath ||
+        !fs.existsSync(scene.assets[0].localPath)
+      ) {
+        throw new Error(
+          `Scene ${scene.sceneIndex + 1} is missing visual assets. Generate assets first.`
+        );
       }
     }
 
@@ -83,7 +95,6 @@ export async function triggerExport(
     for (const scene of scenes) {
       const asset = scene.assets[0];
       const voiceover = scene.voiceover!;
-      const captionText = scene.onScreenCaption || "";
 
       const sceneOutputPath = path.join(exportsDir, `scene-${scene.sceneIndex}.mp4`);
 
@@ -91,7 +102,7 @@ export async function triggerExport(
         assetPath: asset.localPath!,
         assetType: asset.type,
         audioPath: voiceover.localPath!,
-        subtitles: scene.subtitles.map(s => ({
+        subtitles: scene.subtitles.map((s) => ({
           text: s.text,
           startTime: s.startTime || 0,
           endTime: s.endTime || 5,
@@ -108,22 +119,27 @@ export async function triggerExport(
     await concatenateScenes(scenePaths, finalOutputPath);
 
     // 7. Calculate total duration
-    const totalDuration = scenes.reduce((sum, s) => sum + (s.voiceover?.duration || s.duration || 0), 0);
+    const totalDuration = scenes.reduce(
+      (sum, s) => sum + (s.voiceover?.duration || s.duration || 0),
+      0
+    );
 
-    // 8. Update the ExportJob with real output
-    const publicUrl = toPublicUrl(finalOutputPath);
+    // 8. Upload final video to Cloudinary
+    const uploaded = await uploadVideoToCloudinary(finalOutputPath, projectId);
+
+    // 9. Update ExportJob with Cloudinary URL
     const completedJob = await prisma.exportJob.update({
       where: { id: exportJob.id },
       data: {
         status: "COMPLETED",
-        outputUrl: publicUrl,
+        outputUrl: uploaded.secure_url,
         localPath: finalOutputPath,
         duration: parseFloat(totalDuration.toFixed(2)),
         completedAt: new Date(),
       },
     });
 
-    // 9. Mark project as complete
+    // 10. Mark project as complete
     await prisma.project.update({
       where: { id: projectId },
       data: { status: "COMPLETED" },

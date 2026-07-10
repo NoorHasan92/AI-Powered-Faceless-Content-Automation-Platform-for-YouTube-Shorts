@@ -35,7 +35,6 @@ export async function getProjectWithPipeline(id: string) {
           },
         },
       },
-      videos: true,
       exportJobs: true,
     },
   });
@@ -125,16 +124,29 @@ export async function archiveProject(
 }
 
 import { cleanProjectArtifacts } from "@/lib/audio-utils";
+import { deleteProjectCloudinaryAssets } from "@/lib/cloudinary-upload";
 
 /**
  * Completely delete a project and all its generated files from the system.
+ * Cloudinary cleanup is best-effort — failures are logged but don't block deletion.
  */
 export async function deleteProject(projectId: string): Promise<void> {
-  // 1. Delete all generated audio, video, and image files on disk
+  // 1. Attempt Cloudinary cleanup (best-effort)
+  try {
+    await deleteProjectCloudinaryAssets(projectId);
+  } catch (err) {
+    console.warn(
+      `[deleteProject] Cloudinary cleanup failed for project ${projectId}, continuing with deletion:`,
+      err instanceof Error ? err.message : err
+    );
+  }
+
+  // 2. Delete all generated audio, video, and image files on disk
   cleanProjectArtifacts(projectId);
   
-  // 2. Delete from DB (Prisma cascade handles related models)
+  // 3. Delete from DB (Prisma cascade handles related models)
   await prisma.project.delete({
     where: { id: projectId },
   });
 }
+

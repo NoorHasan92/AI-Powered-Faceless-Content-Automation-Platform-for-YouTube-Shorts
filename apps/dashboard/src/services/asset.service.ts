@@ -9,7 +9,8 @@ import { createClient, type Videos, type Photos, type Video, type Photo, type Er
 import fs from "fs";
 import path from "path";
 import https from "https";
-import { getAssetsDir, toPublicUrl } from "@/lib/audio-utils";
+import { getAssetsDir } from "@/lib/audio-utils";
+import { uploadAssetToCloudinary } from "@/lib/cloudinary-upload";
 import { generateImage } from "./ai/image-generation.service";
 
 const pexelsClient = createClient(process.env.PEXELS_API_KEY || "");
@@ -310,12 +311,20 @@ export async function generateAssets(projectId: string): Promise<ServiceResult<A
         await downloadFile(finalAssetData.downloadUrl, localPath);
       }
 
+      // Upload to Cloudinary and use its URL as sourceUrl
+      const upload = await uploadAssetToCloudinary(
+        localPath,
+        projectId,
+        scene.sceneIndex,
+        finalAssetData.type
+      );
+
       const asset = await prisma.asset.create({
         data: {
           sceneId: scene.id,
           type: finalAssetData.type,
-          sourceUrl: finalAssetData.sourceUrl,
-          localPath: finalAssetData.downloadUrl ? localPath : null,
+          sourceUrl: upload.secure_url,
+          localPath: localPath,
           searchQuery: finalAssetData.searchQuery,
           status: "COMPLETED",
         },
@@ -355,16 +364,24 @@ export async function generateAssets(projectId: string): Promise<ServiceResult<A
                    { query: "abstract background motion", type: "video" as const }
                ];
                const pexelsAsset = await findPexelsAsset(searches);
-               if (pexelsAsset && pexelsAsset.type === "STOCK_VIDEO") {
-                   const filename = `scene-${s.sceneIndex}-reroute.mp4`;
-                   const localPath = path.join(assetsDir, filename);
-                   await downloadFile(pexelsAsset.downloadUrl, localPath);
-                   
-                   // Update asset
-                   await prisma.asset.update({
-                       where: { id: s.assets[0].id },
-                       data: { type: "STOCK_VIDEO", sourceUrl: pexelsAsset.sourceUrl, localPath, searchQuery: pexelsAsset.searchQuery }
-                   });
+                if (pexelsAsset && pexelsAsset.type === "STOCK_VIDEO") {
+                    const filename = `scene-${s.sceneIndex}-reroute.mp4`;
+                    const localPath = path.join(assetsDir, filename);
+                    await downloadFile(pexelsAsset.downloadUrl, localPath);
+
+                    // Upload rerouted asset to Cloudinary
+                    const rerouteUpload = await uploadAssetToCloudinary(
+                        localPath,
+                        projectId,
+                        s.sceneIndex,
+                        "STOCK_VIDEO"
+                    );
+                    
+                    // Update asset
+                    await prisma.asset.update({
+                        where: { id: s.assets[0].id },
+                        data: { type: "STOCK_VIDEO", sourceUrl: rerouteUpload.secure_url, localPath, searchQuery: pexelsAsset.searchQuery }
+                    });
                    
                    // Update scene
                    const downgradeReason = s.routingDowngradeReason || "MOTION_SUBSTITUTION" as any;

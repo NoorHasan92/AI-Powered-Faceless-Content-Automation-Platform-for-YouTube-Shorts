@@ -131,9 +131,17 @@ export async function uploadToYouTube(
       throw new Error("YouTube upload succeeded but no video ID was returned.");
     }
 
-    // 5. Create Video record in the database
-    const video = await prisma.video.create({
-      data: {
+    // 5. Create or update Video record in the database
+    const video = await prisma.video.upsert({
+      where: { projectId: exportJob.projectId },
+      update: {
+        fileUrl: exportJob.outputUrl,
+        localPath: exportJob.localPath,
+        youtubeId,
+        publishStatus: "PUBLISHED",
+        publishedAt: new Date(),
+      },
+      create: {
         projectId: exportJob.projectId,
         fileUrl: exportJob.outputUrl,
         localPath: exportJob.localPath,

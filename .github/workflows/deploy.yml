@@ -11,10 +11,10 @@ jobs:
 
     steps:
       - name: SSH and deploy
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@v1.2.2
         with:
           host: ${{ secrets.DO_HOST }}
-          username: ${{ secrets.DO_USERNAME }}
-          key: ${{ secrets.DO_SSH_KEY }}
+          username: ${{ secrets.DO_USERNAME || 'root' }}
+          key: ${{ secrets.DO_SSH_KEY || secrets.SSH_PRIVATE_KEY }}
           script: |
             /var/www/tars/deploy.sh

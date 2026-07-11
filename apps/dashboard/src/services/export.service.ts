@@ -93,14 +93,13 @@ export async function triggerExport(
 
     // 5. Compose each scene
     for (const scene of scenes) {
-      const asset = scene.assets[0];
       const voiceover = scene.voiceover!;
 
       const sceneOutputPath = path.join(exportsDir, `scene-${scene.sceneIndex}.mp4`);
 
       await composeScene({
-        assetPath: asset.localPath!,
-        assetType: asset.type,
+        assetPaths: scene.assets.map(a => a.localPath!),
+        assetType: scene.assets[0].type,
         audioPath: voiceover.localPath!,
         subtitles: scene.subtitles.map((s) => ({
           text: s.text,

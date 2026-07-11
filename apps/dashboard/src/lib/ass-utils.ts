@@ -35,6 +35,8 @@ function escapeAssText(text: string): string {
   return text.replace(/\n/g, "\\N");
 }
 
+import { emphasizeText } from "./subtitle-emphasis";
+
 /**
  * Generates an .ass file for a given set of subtitles.
  * Uses a chunky bold font (Montserrat) with an outline and drop shadow for maximum readability.
@@ -69,7 +71,9 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
   for (const sub of subtitles) {
     const start = formatAssTime(sub.startTime);
     const end = formatAssTime(sub.endTime);
-    const text = escapeAssText(sub.text);
+    // Emphasize first, then escape newlines
+    const emphasizedText = emphasizeText(sub.text);
+    const text = escapeAssText(emphasizedText);
     events += `Dialogue: 0,${start},${end},Default,,0,0,0,,${text}\n`;
   }
 

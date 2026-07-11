@@ -67,13 +67,12 @@ function isStrongInfographicCandidate(scene: SceneInput, blob: string): { isStro
 export interface VisualBudget {
   maxAiImageScenes: number;
   preferredMotionRatio: number;
-  aiImageFallbackDisabled: boolean;
   projectNiche?: string | null;
 }
 
 export function normalizeSceneVisualRouting(
   script: ScriptResponse,
-  budget: VisualBudget = { maxAiImageScenes: 2, preferredMotionRatio: 0.7, aiImageFallbackDisabled: false }
+  budget: VisualBudget = { maxAiImageScenes: 2, preferredMotionRatio: 0.7 }
 ): ScriptResponse {
   
   const isScienceNiche = budget.projectNiche && (
@@ -121,9 +120,7 @@ export function normalizeSceneVisualRouting(
   aiCandidateScenes.sort((a, b) => b.score - a.score);
   
   const allowedAiScenes = new Set(
-    budget.aiImageFallbackDisabled 
-      ? [] 
-      : aiCandidateScenes.slice(0, budget.maxAiImageScenes).map(s => s.index)
+    aiCandidateScenes.slice(0, budget.maxAiImageScenes).map(s => s.index)
   );
 
   const normalizedScenes = scoredScenes.map((scored) => {
@@ -139,7 +136,7 @@ export function normalizeSceneVisualRouting(
 
     // D. Downgrade rejected AI scenes
     if (initialSource === "AI_IMAGE" && !allowedAiScenes.has(index)) {
-      downgradeReason = budget.aiImageFallbackDisabled ? "AI_DISABLED_FOR_PROJECT" : "AI_QUOTA";
+      downgradeReason = "AI_QUOTA";
       
       if (isScienceNiche) {
           if (infographicCheck.isStrong) {

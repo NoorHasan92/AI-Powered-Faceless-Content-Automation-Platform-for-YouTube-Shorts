@@ -64,8 +64,7 @@ export const sceneSchema = z.object({
   routingDowngradeReason: z
     .enum([
       "AI_QUOTA",
-      "REPLICATE_402",
-      "REPLICATE_429",
+      "IMAGE_GENERATION_FAILED",
       "MOTION_SUBSTITUTION",
       "NO_STOCK_VIDEO_FOUND",
       "AI_DISABLED_FOR_PROJECT"

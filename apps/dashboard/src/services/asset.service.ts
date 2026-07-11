@@ -1,5 +1,5 @@
 // File Location: src/services/asset.service.ts
-// Real visual asset generation using Pexels API.
+// Real visual asset generation using Pexels API and AI image generation.
 // Searches for stock videos/images per scene using searchKeywords, downloads them locally.
 
 import { prisma } from "@/lib/prisma";
@@ -11,7 +11,7 @@ import path from "path";
 import https from "https";
 import { getAssetsDir } from "@/lib/audio-utils";
 import { uploadAssetToCloudinary } from "@/lib/cloudinary-upload";
-import { generateImage } from "./ai/image-generation.service";
+import { generateImage } from "./image-generation/image-generation.service";
 
 const pexelsClient = createClient(process.env.PEXELS_API_KEY || "");
 
@@ -112,89 +112,83 @@ async function findPexelsAsset(searches: { query: string, type: "video" | "image
   return null;
 }
 
-async function attemptAIGenerationWithCircuitBreaker(
-  scene: Scene, 
-  projectId: string, 
-  aiImageFallbackDisabled: boolean
-): Promise<{ 
-  finalAssetData: any | null, 
-  newAssetType: any, 
-  newDowngradeReason: any, 
-  fallbackDisabled: boolean 
-}> {
-  let assetTypeToTry = scene.visualSource;
-  let downgradeReason = scene.routingDowngradeReason;
-  let fallbackDisabled = aiImageFallbackDisabled;
-  let finalAssetData = null;
+const CAMERA_MODIFIERS = [
+  "Macro close-up, extreme detail",
+  "Wide cinematic shot, expansive perspective",
+  "Overhead perspective, birds-eye view",
+  "Low-angle cinematic, dramatic framing"
+];
 
-  if (assetTypeToTry === "AI_IMAGE" && fallbackDisabled) {
-    console.warn(`Skipping AI Image for scene ${scene.sceneIndex} due to previous 402/Disabled flag.`);
-    assetTypeToTry = "STOCK_VIDEO";
-    if (!downgradeReason) downgradeReason = "AI_DISABLED_FOR_PROJECT" as any;
-    
+/**
+ * Attempt AI image generation for a scene.
+ * Simple: try once, succeed or fallback to STOCK_VIDEO (motion).
+ * No circuit breaker. No retry loop. No payment handling.
+ */
+async function attemptAIImageGeneration(
+  scene: Scene
+): Promise<{
+  finalAssetData: any[] | null;
+  newAssetType: string;
+  downgradeReason: string | null;
+}> {
+  if (scene.visualSource !== "AI_IMAGE") {
+    return { finalAssetData: null, newAssetType: scene.visualSource, downgradeReason: null };
+  }
+
+  try {
+    const duration = scene.duration || 5;
+    let imageCount = 1;
+    if (duration > 15) imageCount = 4;
+    else if (duration >= 10) imageCount = 3;
+    else if (duration > 5) imageCount = 2; // Fixed to > 5 instead of >= 5 since <= 5 is 1 image
+
+    const basePrompt = scene.generatedAssetPrompt || scene.visualPrompt;
+    console.log(`[AssetService] Generating ${imageCount} AI Image(s) for scene ${scene.sceneIndex}...`);
+
+    const results = [];
+    for (let i = 0; i < imageCount; i++) {
+      let prompt = basePrompt;
+      if (imageCount > 1) {
+        prompt = `${CAMERA_MODIFIERS[i % CAMERA_MODIFIERS.length]} of ${basePrompt}`;
+      }
+      if (imageCount > 1) console.log(`[AssetService] Generating variation ${i + 1}/${imageCount}...`);
+      const result = await generateImage(prompt, "portrait");
+      results.push({
+        buffer: result.buffer,
+        sourceUrl: "AI_GENERATED",
+        searchQuery: prompt,
+        type: "AI_IMAGE",
+        extension: result.extension,
+      });
+    }
+
+    return {
+      finalAssetData: results,
+      newAssetType: "AI_IMAGE",
+      downgradeReason: null,
+    };
+  } catch (err: any) {
+    console.warn(
+      `[AssetService] AI Image generation failed for scene ${scene.sceneIndex}:`,
+      err?.message || String(err)
+    );
+
+    // On ANY failure, fall back to STOCK_VIDEO (motion), never STOCK_IMAGE (still)
     await prisma.scene.update({
       where: { id: scene.id },
-      data: { visualSource: "STOCK_VIDEO", motionTreatment: "LOOP_VIDEO", routingDowngradeReason: downgradeReason }
+      data: {
+        visualSource: "STOCK_VIDEO",
+        motionTreatment: "LOOP_VIDEO",
+        routingDowngradeReason: "IMAGE_GENERATION_FAILED",
+      },
     });
-    return { finalAssetData: null, newAssetType: assetTypeToTry, newDowngradeReason: downgradeReason, fallbackDisabled };
-  }
 
-  if (assetTypeToTry === "AI_IMAGE") {
-    let retries = 0;
-    let success = false;
-    while (retries < 2 && !success) {
-      try {
-        const prompt = scene.generatedAssetPrompt || scene.visualPrompt;
-        console.log(`Generating AI Image for scene ${scene.sceneIndex}... (attempt ${retries + 1})`);
-        const result = await generateImage(prompt, "portrait");
-        finalAssetData = {
-          downloadUrl: result.url,
-          buffer: result.buffer,
-          sourceUrl: "AI_GENERATED",
-          searchQuery: prompt,
-          type: "AI_IMAGE",
-          extension: result.extension
-        };
-        success = true;
-      } catch (err: any) {
-        const errMsg = err?.message || String(err);
-        console.warn(`AI Image generation failed for scene ${scene.sceneIndex}:`, errMsg);
-        
-        if (errMsg.includes("402") || errMsg.toLowerCase().includes("payment") || errMsg.toLowerCase().includes("credit")) {
-          fallbackDisabled = true;
-          await prisma.project.update({ where: { id: projectId }, data: { aiImageFallbackDisabled: true }});
-          assetTypeToTry = "STOCK_VIDEO";
-          if (!downgradeReason) downgradeReason = "REPLICATE_402" as any;
-          await prisma.scene.update({
-            where: { id: scene.id },
-            data: { visualSource: "STOCK_VIDEO", motionTreatment: "LOOP_VIDEO", routingDowngradeReason: downgradeReason }
-          });
-          break; // Stop retrying
-        } else if (errMsg.includes("429") || errMsg.toLowerCase().includes("too many requests")) {
-          retries++;
-          if (retries >= 2) {
-            assetTypeToTry = "STOCK_VIDEO";
-            // 402 > 429 > others. Check priority.
-            if (!downgradeReason || downgradeReason === "AI_QUOTA" || downgradeReason === "MOTION_SUBSTITUTION") {
-               downgradeReason = "REPLICATE_429" as any;
-            }
-            await prisma.scene.update({
-              where: { id: scene.id },
-              data: { visualSource: "STOCK_VIDEO", motionTreatment: "LOOP_VIDEO", routingDowngradeReason: downgradeReason }
-            });
-          } else {
-             // wait 2 seconds before retry
-             await new Promise(r => setTimeout(r, 2000));
-          }
-        } else {
-          assetTypeToTry = "STOCK_IMAGE";
-          break; // Other error, fallback to stock image
-        }
-      }
-    }
+    return {
+      finalAssetData: null,
+      newAssetType: "STOCK_VIDEO",
+      downgradeReason: "IMAGE_GENERATION_FAILED",
+    };
   }
-
-  return { finalAssetData, newAssetType: assetTypeToTry, newDowngradeReason: downgradeReason, fallbackDisabled };
 }
 
 export async function generateAssets(projectId: string): Promise<ServiceResult<Asset[]>> {
@@ -216,20 +210,18 @@ export async function generateAssets(projectId: string): Promise<ServiceResult<A
     const assetsDir = getAssetsDir(projectId);
     const assets: Asset[] = [];
     
-    let fallbackDisabled = script.project.aiImageFallbackDisabled;
     const preferredMotionRatio = script.project.preferredMotionRatio || 0.7;
 
     for (const scene of script.scenes.sort((a, b) => a.sceneIndex - b.sceneIndex)) {
-      // 1. Try AI Image if requested (with circuit breaker)
-      const aiResult = await attemptAIGenerationWithCircuitBreaker(scene, projectId, fallbackDisabled);
-      fallbackDisabled = aiResult.fallbackDisabled;
+      // 1. Try AI Image if requested
+      const aiResult = await attemptAIImageGeneration(scene);
       
-      let finalAssetData = aiResult.finalAssetData;
+      let finalAssetsData: any[] = aiResult.finalAssetData || [];
       let assetTypeToTry = aiResult.newAssetType;
-      let downgradeReason = aiResult.newDowngradeReason;
+      let downgradeReason = aiResult.downgradeReason;
 
       // 2. Try Stock if requested or fell back
-      if (!finalAssetData && (assetTypeToTry === "STOCK_VIDEO" || assetTypeToTry === "STOCK_IMAGE")) {
+      if (finalAssetsData.length === 0 && (assetTypeToTry === "STOCK_VIDEO" || assetTypeToTry === "STOCK_IMAGE")) {
         let searches: { query: string, type: "video" | "image" }[] = [];
         if (scene.assetSearches && Array.isArray(scene.assetSearches)) {
           searches = scene.assetSearches as any;
@@ -255,43 +247,43 @@ export async function generateAssets(projectId: string): Promise<ServiceResult<A
         // If stock video was requested but only found image, mark NO_STOCK_VIDEO_FOUND
         if (assetTypeToTry === "STOCK_VIDEO" && (!pexelsAsset || pexelsAsset.type === "STOCK_IMAGE")) {
             if (!downgradeReason || downgradeReason === "AI_QUOTA") {
-                downgradeReason = "NO_STOCK_VIDEO_FOUND" as any;
+                downgradeReason = "NO_STOCK_VIDEO_FOUND";
                 await prisma.scene.update({
                   where: { id: scene.id },
-                  data: { visualSource: "STOCK_IMAGE", motionTreatment: "KEN_BURNS", routingDowngradeReason: downgradeReason }
+                  data: { visualSource: "STOCK_IMAGE", motionTreatment: "KEN_BURNS", routingDowngradeReason: downgradeReason as any }
                 });
             }
         }
 
         if (pexelsAsset) {
-          finalAssetData = pexelsAsset;
+          finalAssetsData = [pexelsAsset];
         }
       }
 
-      if (!finalAssetData && assetTypeToTry === "INFOGRAPHIC") {
+      if (finalAssetsData.length === 0 && assetTypeToTry === "INFOGRAPHIC") {
          // V1 fallback: Infographics require a real visual asset for the FFmpeg pipeline.
          // Generate a placeholder image until a real HTML5/Remotion rendering engine is implemented.
          const title = (scene.infographicPayload as any)?.title || scene.onScreenCaption || "Infographic";
          const encodedTitle = encodeURIComponent(title);
-         finalAssetData = {
+         finalAssetsData = [{
            downloadUrl: `https://placehold.co/1080x1920/1e293b/ffffff/png?text=${encodedTitle}`,
            sourceUrl: "INFOGRAPHIC_GENERATED",
            searchQuery: "infographic",
            type: "INFOGRAPHIC",
            extension: "png"
-         };
+         }];
       }
 
-      if (!finalAssetData) {
+      if (finalAssetsData.length === 0) {
         console.warn(`No visual asset found or generated for scene ${scene.sceneIndex}. Generating bulletproof placeholder to prevent export crash...`);
         const fallbackText = encodeURIComponent(`Missing Asset\nScene ${scene.sceneIndex + 1}\nNo Stock Found`);
-        finalAssetData = {
+        finalAssetsData = [{
            downloadUrl: `https://placehold.co/1080x1920/ff4444/ffffff/png?text=${fallbackText}`,
            sourceUrl: "PLACEHOLDER_FAILED",
            searchQuery: "failed",
            type: "STOCK_IMAGE",
            extension: "png"
-        };
+        }];
         
         // Also update the downgrade reason so it's transparent in the UI
         if (!downgradeReason) {
@@ -302,35 +294,38 @@ export async function generateAssets(projectId: string): Promise<ServiceResult<A
         }
       }
 
-      const filename = `scene-${scene.sceneIndex}.${finalAssetData.extension}`;
-      const localPath = path.join(assetsDir, filename);
+      for (let i = 0; i < finalAssetsData.length; i++) {
+        const finalAssetData = finalAssetsData[i];
+        const filename = `scene-${scene.sceneIndex}-${i}.${finalAssetData.extension}`;
+        const localPath = path.join(assetsDir, filename);
 
-      if (finalAssetData.buffer) {
-        fs.writeFileSync(localPath, finalAssetData.buffer);
-      } else if (finalAssetData.downloadUrl) {
-        await downloadFile(finalAssetData.downloadUrl, localPath);
+        if (finalAssetData.buffer) {
+          fs.writeFileSync(localPath, finalAssetData.buffer);
+        } else if (finalAssetData.downloadUrl) {
+          await downloadFile(finalAssetData.downloadUrl, localPath);
+        }
+
+        // Upload to Cloudinary and use its URL as sourceUrl
+        const upload = await uploadAssetToCloudinary(
+          localPath,
+          projectId,
+          scene.sceneIndex,
+          finalAssetData.type
+        );
+
+        const asset = await prisma.asset.create({
+          data: {
+            sceneId: scene.id,
+            type: finalAssetData.type,
+            sourceUrl: upload.secure_url,
+            localPath: localPath,
+            searchQuery: finalAssetData.searchQuery,
+            status: "COMPLETED",
+          },
+        });
+
+        assets.push(asset);
       }
-
-      // Upload to Cloudinary and use its URL as sourceUrl
-      const upload = await uploadAssetToCloudinary(
-        localPath,
-        projectId,
-        scene.sceneIndex,
-        finalAssetData.type
-      );
-
-      const asset = await prisma.asset.create({
-        data: {
-          sceneId: scene.id,
-          type: finalAssetData.type,
-          sourceUrl: upload.secure_url,
-          localPath: localPath,
-          searchQuery: finalAssetData.searchQuery,
-          status: "COMPLETED",
-        },
-      });
-
-      assets.push(asset);
     }
 
     // 5. Final Motion Validation
@@ -384,10 +379,10 @@ export async function generateAssets(projectId: string): Promise<ServiceResult<A
                     });
                    
                    // Update scene
-                   const downgradeReason = s.routingDowngradeReason || "MOTION_SUBSTITUTION" as any;
+                   const dreason = s.routingDowngradeReason || "MOTION_SUBSTITUTION" as any;
                    await prisma.scene.update({
                        where: { id: s.id },
-                       data: { visualSource: "STOCK_VIDEO", motionTreatment: "LOOP_VIDEO", routingDowngradeReason: downgradeReason }
+                       data: { visualSource: "STOCK_VIDEO", motionTreatment: "LOOP_VIDEO", routingDowngradeReason: dreason }
                    });
                    hardMotionScenes++;
                    if (hardMotionScenes / totalScenes >= preferredMotionRatio) break;

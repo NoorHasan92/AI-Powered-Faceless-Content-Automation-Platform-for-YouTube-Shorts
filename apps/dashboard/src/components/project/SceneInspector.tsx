@@ -20,7 +20,6 @@ export default function SceneInspector({ scenes }: SceneInspectorProps) {
   let hardMotionScenes = 0;
   let softMotionScenes = 0;
   let aiHeroScenes = 0;
-  let aiDisabled = false;
 
   scenes.forEach(s => {
       const finalType = s.assets?.[0]?.type || s.visualSource;
@@ -32,10 +31,6 @@ export default function SceneInspector({ scenes }: SceneInspectorProps) {
       
       if (finalType === "AI_IMAGE") {
           aiHeroScenes++;
-      }
-      
-      if ((s as any).routingDowngradeReason === "AI_DISABLED_FOR_PROJECT" || (s as any).routingDowngradeReason === "REPLICATE_402") {
-          aiDisabled = true;
       }
   });
 
@@ -59,16 +54,6 @@ export default function SceneInspector({ scenes }: SceneInspectorProps) {
                   <span className="text-xl font-black text-slate-800">{aiHeroScenes}</span>
               </div>
           </div>
-          {aiDisabled && (
-              <>
-                  <div className="w-px bg-slate-200"></div>
-                  <div className="space-y-1 flex items-center">
-                      <span className="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-bold uppercase border border-red-200">
-                          AI Fallback Disabled (Credits)
-                      </span>
-                  </div>
-              </>
-          )}
       </div>
 
       <div className="space-y-4">

@@ -109,7 +109,6 @@ export async function generateScript(
     const aiData = normalizeSceneVisualRouting(parseResult.data, {
       maxAiImageScenes: project.maxAiImageScenes,
       preferredMotionRatio: project.preferredMotionRatio,
-      aiImageFallbackDisabled: project.aiImageFallbackDisabled,
       projectNiche: project.niche
     });
 

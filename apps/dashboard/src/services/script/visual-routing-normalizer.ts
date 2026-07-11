@@ -96,7 +96,8 @@ export function normalizeSceneVisualRouting(
     if (isScienceNiche) {
         if (infographicCheck.isStrong && initialSource !== "INFOGRAPHIC") initialSource = "INFOGRAPHIC";
     } else {
-        if (isExplanatory && initialSource !== "INFOGRAPHIC" && initialSource !== "AI_IMAGE") initialSource = "INFOGRAPHIC";
+        // Removed the generic isExplanatory override. Only force INFOGRAPHIC if it strongly matches infographic data.
+        if (infographicCheck.isStrong && initialSource !== "INFOGRAPHIC") initialSource = "INFOGRAPHIC";
     }
     
     if (isAbstract && !isLiteral && initialSource !== "AI_IMAGE") initialSource = "AI_IMAGE";
@@ -115,12 +116,16 @@ export function normalizeSceneVisualRouting(
     };
   });
 
+  // Calculate dynamic AI image budget based on total duration (roughly 1 scene per 15 seconds)
+  const totalDuration = script.scenes.reduce((acc, s) => acc + (s.duration || 5), 0);
+  const dynamicMaxAiScenes = Math.max(2, Math.floor(totalDuration / 15));
+  
   // Step C: Enforce AI budget
   const aiCandidateScenes = scoredScenes.filter(s => s.initialSource === "AI_IMAGE");
   aiCandidateScenes.sort((a, b) => b.score - a.score);
   
   const allowedAiScenes = new Set(
-    aiCandidateScenes.slice(0, budget.maxAiImageScenes).map(s => s.index)
+    aiCandidateScenes.slice(0, dynamicMaxAiScenes).map(s => s.index)
   );
 
   const normalizedScenes = scoredScenes.map((scored) => {
@@ -138,18 +143,11 @@ export function normalizeSceneVisualRouting(
     if (initialSource === "AI_IMAGE" && !allowedAiScenes.has(index)) {
       downgradeReason = "AI_QUOTA";
       
-      if (isScienceNiche) {
-          if (infographicCheck.isStrong) {
-              finalSource = "INFOGRAPHIC";
-          } else {
-              finalSource = "STOCK_VIDEO";
-          }
+      // Fallback to STOCK_VIDEO, do not fallback to INFOGRAPHIC unless it's strongly structured data.
+      if (infographicCheck.isStrong) {
+          finalSource = "INFOGRAPHIC";
       } else {
-          if (infographicCheck.isStrong || isExplanatory) {
-              finalSource = "INFOGRAPHIC";
-          } else {
-              finalSource = "STOCK_VIDEO";
-          }
+          finalSource = "STOCK_VIDEO";
       }
       
       if (finalSource === "STOCK_VIDEO") {
@@ -225,9 +223,14 @@ export function normalizeSceneVisualRouting(
       };
     }
     
-    // Ensure AI prompt exists
-    if (out.visualSource === "AI_IMAGE" && (!out.generatedAssetPrompt || out.generatedAssetPrompt.length < 10)) {
-      out.generatedAssetPrompt = `Cinematic, surreal macro visualization of ${out.searchKeywords?.[0] || 'internal activity'}. Glowing, abstract, highly detailed 8k render, vertical composition.`;
+    // Ensure AI prompt exists and is highly cinematic
+    if (out.visualSource === "AI_IMAGE") {
+      if (!out.generatedAssetPrompt || out.generatedAssetPrompt.length < 10) {
+        out.generatedAssetPrompt = `Cinematic, surreal macro visualization of ${out.searchKeywords?.[0] || 'internal activity'}. Glowing, abstract, highly detailed 8k render, vertical composition, dramatic lighting.`;
+      } else if (!out.generatedAssetPrompt.toLowerCase().includes("cinematic") && !out.generatedAssetPrompt.toLowerCase().includes("macro") && !out.generatedAssetPrompt.toLowerCase().includes("wide") && !out.generatedAssetPrompt.toLowerCase().includes("shot") && !out.generatedAssetPrompt.toLowerCase().includes("lighting")) {
+        // Force cinematic cues if none appear to exist
+        out.generatedAssetPrompt = `Cinematic perspective, dramatic lighting, highly detailed 8k render of: ${out.generatedAssetPrompt}`;
+      }
     }
 
     // Assign Motion Treatments

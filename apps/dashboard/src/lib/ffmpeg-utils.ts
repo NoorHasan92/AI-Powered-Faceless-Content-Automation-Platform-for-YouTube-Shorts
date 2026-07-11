@@ -55,7 +55,7 @@ export async function composeScene(options: {
   return new Promise((resolve, reject) => {
     const command = ffmpeg();
 
-    if (assetType === "STOCK_VIDEO" || assetType === "STOCK_IMAGE" || (assetType === "AI_IMAGE" && assetPaths.length === 1)) {
+    if (assetType !== "AI_IMAGE" || assetPaths.length === 1) {
       // ---------------------------------------------------------
       // SINGLE ASSET PIPELINE (Backwards Compatibility)
       // ---------------------------------------------------------
@@ -78,6 +78,7 @@ export async function composeScene(options: {
           `[1:a]afade=t=in:st=0:d=0.1,afade=t=out:st=${Math.max(0, audioDuration - 0.2)}:d=0.2[outa]`
         ]);
       } else {
+        // STOCK_IMAGE and INFOGRAPHIC
         command.input(assetPath).inputOptions(["-loop", "1"]).input(audioPath);
         command.complexFilter([
           `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30[bg]`,
@@ -181,6 +182,9 @@ export async function composeScene(options: {
 
     command
       .output(outputPath)
+      .on("start", (cmdline) => {
+        console.log(`[FFmpeg] Spawned for ${assetType} scene: ${cmdline}`);
+      })
       .on("end", () => resolve())
       .on("error", (err) => reject(new Error(`FFmpeg scene error: ${err.message}`)))
       .run();

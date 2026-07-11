@@ -163,36 +163,31 @@ Rules:
 - \`visualRole\` must be one of: "LITERAL_FOOTAGE", "ABSTRACT_ANIMATION", "INFOGRAPHIC", "DEMONSTRATION", "TRANSITION".
 - \`visualSource\` must be one of: "STOCK_VIDEO", "STOCK_IMAGE", "AI_IMAGE", "INFOGRAPHIC".
 - **Scene Classification Rule**: Before assigning \`visualSource\`, you MUST mentally classify the scene into one of three buckets:
-  1. LITERAL_REAL_WORLD or ABSTRACT_CONNECTIVE_FILLER
-  2. EXPLANATORY_MECHANISM (timelines, comparisons, step-by-step)
-  3. SURREAL_HERO_MOMENT (impossible to film, highly emotional/cinematic)
+  1. LITERAL_REAL_WORLD
+  2. STRUCTURED_DATA (statistics, timelines, step-by-step processes, explicit comparisons)
+  3. ABSTRACT_OR_CONCEPTUAL (emotions, neuroscience, surreal concepts, metaphors)
   Then, you MUST apply this strict priority mapping:
-  - Prefer \`STOCK_VIDEO\` for literal action AND abstract/connective filler (e.g. glowing loops, abstract particles).
-  - Prefer \`INFOGRAPHIC\` for explanatory mechanisms, diagrams, timelines, or comparisons.
-  - Use \`AI_IMAGE\` ONLY for the most visually important surreal hero moments or impossible-to-film emotional climaxes.
+  - Prefer \`STOCK_VIDEO\` as Priority 1 whenever strong real-world footage can realistically exist.
+  - Prefer \`AI_IMAGE\` as Priority 2 over INFOGRAPHIC whenever real footage cannot effectively communicate the concept (e.g. abstract ideas, internal biology, emotions).
+  - Use \`INFOGRAPHIC\` ONLY as Priority 3 when the narration explicitly requires structured information (percentages, rankings, timelines, flowcharts, labeled mechanisms). Do NOT use INFOGRAPHIC merely because a scene is explanatory.
   - \`STOCK_IMAGE\` should only be used as a last resort fallback.
-- **Source Selection Rule (HARD ROUTING)**:
-  - Use \`STOCK_VIDEO\` as the primary workhorse. For literal scenes, use standard queries. For abstract scenes, use motion-friendly query templates (e.g., "glowing neural network loop", "abstract signal glitch animation", "fractal tunnel").
-  - Use \`INFOGRAPHIC\` when the scene primarily depicts percentages, comparisons, rankings, before/after logic, step-based explanations, mechanism diagrams, or process/timeline visuals.
-  - Use \`AI_IMAGE\` sparingly. It is a limited "hero scene" resource. Only use it when the scene is a central thesis or emotional climax that requires impossible visualizations.
-  - Use \`STOCK_IMAGE\` only when no motion-capable option is plausible.
 - **Role-Source Mapping**: 
-  - ABSTRACT_ANIMATION -> prefer STOCK_VIDEO (abstract loops) or AI_IMAGE (if hero scene)
-  - INFOGRAPHIC -> must use INFOGRAPHIC
+  - ABSTRACT_ANIMATION -> strongly prefer AI_IMAGE
+  - INFOGRAPHIC -> must use INFOGRAPHIC (but strictly for structured data)
   - DEMONSTRATION / LITERAL_FOOTAGE -> strongly prefer STOCK_VIDEO
-  - TRANSITION -> prefer STOCK_VIDEO or INFOGRAPHIC
-- If \`visualSource\` is "AI_IMAGE", you MUST provide a detailed \`generatedAssetPrompt\` optimized for an AI Image generator (e.g. Flux/Midjourney). Otherwise leave it null.
+  - TRANSITION -> prefer STOCK_VIDEO or AI_IMAGE
+- If \`visualSource\` is "AI_IMAGE", you MUST provide a detailed \`generatedAssetPrompt\` optimized for an AI Image generator. You MUST include cinematic composition cues (camera angle, framing, lighting, perspective) to maximize quality (e.g., "Macro close-up, dramatic rim lighting", "Wide cinematic shot, low angle").
 - If \`visualSource\` is "INFOGRAPHIC", provide a basic JSON in \`infographicPayload\` (e.g. {"title": "Fact"}). Otherwise leave it null.
 - You must shape the \`assetSearches\` queries based on the chosen \`visualRole\` (e.g., LITERAL_FOOTAGE -> direct real-world footage, ABSTRACT_ANIMATION -> conceptual visuals).
 - Do NOT use the same \`visualRole\` more than two scenes in a row. Maintain high visual variety.
 - **Pacing & Scene Beats**: Prefer short, fast-paced scenes for Shorts. Most scenes should land around 2–5 seconds unless the concept clearly needs more time. Never exceed 1-2 short sentences per scene. Require scene boundaries to strictly match natural sentence boundaries (no awkward mid-sentence scene cuts).
 - **Semantic Density**: If a single beat contains multiple unrelated or highly complex concepts, you MUST split it into two rapid consecutive scenes. If it cannot be split, you must select one overarching abstract thematic visual strategy for the scene, rather than attempting a combined 'frankenstein' query.
 - **Closing Scene Intelligence**: For the final scene, explicitly declare the \`endingIntent\` as one of: "CTA", "EMOTIONAL_PAYOFF", "PRACTICAL_ADVICE".
-  - **Ending Intent -> Visual Source Override**: If \`endingIntent\` is "EMOTIONAL_PAYOFF" (e.g., existential themes, "question reality", "your brain is lying to you"), you MUST strongly default to \`visualRole = ABSTRACT_ANIMATION\` and \`visualSource = AI_IMAGE\`, unless the scene explicitly contains numbers, steps, comparisons, or mechanism diagrams. Do NOT use generic INFOGRAPHIC for emotional/existential ending scenes.
+  - **Ending Intent -> Visual Source Override**: If \`endingIntent\` is "EMOTIONAL_PAYOFF", you MUST strongly default to \`visualRole = ABSTRACT_ANIMATION\` and \`visualSource = AI_IMAGE\`. Do NOT use generic INFOGRAPHIC for emotional/existential ending scenes.
   - For non-final scenes, omit \`endingIntent\` or leave it null.
 - **Anchor Coverage Rule**: You MUST preserve and repeat the 'Required Anchors' across multiple scenes, examples, and visual plans.
 - **Forbidden Drift**: You are strictly forbidden from writing about any of the 'Forbidden Drift Topics'.
 - **Content Constraints**: You must rigidly follow every rule listed in 'Content Constraints'.
-- **SELF-CHECK**: For each scene, ask: could a normal stock video library realistically contain a strong literal asset for this exact scene? If no, do not use STOCK_VIDEO. Use AI_IMAGE or INFOGRAPHIC instead. Finally, review the brief to ensure the script completely satisfies the core topic and constraints. If not, rewrite.
+- **SELF-CHECK**: For each scene, ask: could a normal stock video library realistically contain a strong literal asset for this exact scene? If yes, use STOCK_VIDEO. If no, use AI_IMAGE (or INFOGRAPHIC if explicitly structured data).
 `.trim();
 }

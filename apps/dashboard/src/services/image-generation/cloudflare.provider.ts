@@ -1,16 +1,24 @@
 // File Location: src/services/image-generation/cloudflare.provider.ts
 // Cloudflare Workers AI image generation provider.
 // Calls a self-hosted Cloudflare Worker (free-image-generation-api) to produce images.
-// No payment handling, no retries, no circuit breakers — just a clean HTTP call.
+// Includes single-retry with exponential backoff for transient errors,
+// and granular error classification (quota / auth / network).
 
 import type {
   ImageGenerationProvider,
   ImageGenerationResult,
   ImageGenerationOptions,
 } from "./types";
+import { ImageGenerationError } from "./types";
 
 /** Maximum time (ms) to wait for image generation before aborting. */
 const GENERATION_TIMEOUT_MS = 30_000;
+
+/** HTTP status codes considered transient (worth retrying). */
+const RETRYABLE_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
+
+/** Base delay (ms) for exponential backoff on retry. */
+const RETRY_BASE_DELAY_MS = 2_000;
 
 /**
  * Resolves orientation + optional explicit dimensions into width/height.
@@ -32,6 +40,58 @@ function resolveSize(options?: ImageGenerationOptions): { width: number; height:
 }
 
 /**
+ * Classify an HTTP error response into a granular error code.
+ */
+function classifyHttpError(
+  status: number,
+  body: string,
+  headers?: Headers
+): ImageGenerationError {
+  // Log headers for quota/rate-limit errors to aid debugging
+  if (status === 429 || body.toLowerCase().includes("quota") || body.toLowerCase().includes("rate limit")) {
+    const headerInfo = headers
+      ? Object.fromEntries([...headers.entries()].filter(([k]) =>
+          k.toLowerCase().includes("retry") ||
+          k.toLowerCase().includes("limit") ||
+          k.toLowerCase().includes("remaining")
+        ))
+      : {};
+    console.error(
+      `[CloudflareAI] QUOTA ERROR — Status: ${status}\n` +
+      `  Body: ${body.slice(0, 500)}\n` +
+      `  Rate-Limit Headers: ${JSON.stringify(headerInfo)}`
+    );
+    return new ImageGenerationError(
+      `Image generation quota/rate-limit error (HTTP ${status}): ${body.slice(0, 200)}`,
+      "IMAGE_PROVIDER_QUOTA",
+      status,
+      body
+    );
+  }
+
+  if (status === 401 || status === 403) {
+    console.error(
+      `[CloudflareAI] AUTH ERROR — Status: ${status}\n` +
+      `  Body: ${body.slice(0, 500)}`
+    );
+    return new ImageGenerationError(
+      `Image generation authentication failed (HTTP ${status}): ${body.slice(0, 200)}`,
+      "IMAGE_PROVIDER_AUTH",
+      status,
+      body
+    );
+  }
+
+  // Generic server error
+  return new ImageGenerationError(
+    `Cloudflare image generation failed (HTTP ${status}): ${body.slice(0, 200)}`,
+    "IMAGE_GENERATION_FAILED",
+    status,
+    body
+  );
+}
+
+/**
  * Cloudflare Workers AI provider.
  *
  * Expects the Worker to accept:
@@ -40,6 +100,9 @@ function resolveSize(options?: ImageGenerationOptions): { width: number; height:
  * And return raw image bytes (PNG) with Content-Type: image/png.
  *
  * If the Worker returns JSON (e.g. { image: "<base64>" }), we handle that too.
+ *
+ * Retry strategy: one retry with exponential backoff for transient HTTP errors
+ * (429, 500, 502, 503, 504). Auth errors and permanent failures fail immediately.
  */
 export class CloudflareImageProvider implements ImageGenerationProvider {
   readonly name = "cloudflare";
@@ -68,8 +131,53 @@ export class CloudflareImageProvider implements ImageGenerationProvider {
       `[CloudflareAI] Generating image: ${width}x${height} — "${prompt.slice(0, 80)}…"`
     );
 
-    // Abort if the Worker doesn't respond within the timeout.
-    // This prevents a hung network call from blocking the entire asset pipeline.
+    // Attempt generation with one retry for transient errors
+    let lastError: Error | null = null;
+    const maxAttempts = 2; // initial + 1 retry
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const result = await this.attemptGeneration(prompt, width, height);
+        return result;
+      } catch (err: any) {
+        lastError = err;
+
+        // Don't retry auth errors or non-retryable failures
+        if (err instanceof ImageGenerationError) {
+          if (err.code === "IMAGE_PROVIDER_AUTH") {
+            throw err; // permanent — no retry
+          }
+          if (err.httpStatus && !RETRYABLE_STATUS_CODES.has(err.httpStatus)) {
+            throw err; // permanent HTTP error — no retry
+          }
+        }
+
+        if (attempt < maxAttempts) {
+          const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt - 1);
+          console.warn(
+            `[CloudflareAI] Attempt ${attempt}/${maxAttempts} failed (${err?.message || String(err)}). ` +
+            `Retrying in ${delay}ms...`
+          );
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    // All attempts exhausted
+    throw lastError || new ImageGenerationError(
+      "Image generation failed after all retry attempts",
+      "IMAGE_GENERATION_FAILED"
+    );
+  }
+
+  /**
+   * Single generation attempt with timeout.
+   */
+  private async attemptGeneration(
+    prompt: string,
+    width: number,
+    height: number
+  ): Promise<ImageGenerationResult> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), GENERATION_TIMEOUT_MS);
 
@@ -89,12 +197,14 @@ export class CloudflareImageProvider implements ImageGenerationProvider {
     } catch (err: any) {
       clearTimeout(timeout);
       if (err?.name === "AbortError") {
-        throw new Error(
-          `Image generation timed out after ${GENERATION_TIMEOUT_MS / 1000}s`
+        throw new ImageGenerationError(
+          `Image generation timed out after ${GENERATION_TIMEOUT_MS / 1000}s`,
+          "IMAGE_PROVIDER_NETWORK"
         );
       }
-      throw new Error(
-        `Image generation network error: ${err?.message || String(err)}`
+      throw new ImageGenerationError(
+        `Image generation network error: ${err?.message || String(err)}`,
+        "IMAGE_PROVIDER_NETWORK"
       );
     } finally {
       clearTimeout(timeout);
@@ -102,9 +212,7 @@ export class CloudflareImageProvider implements ImageGenerationProvider {
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => "Unknown error");
-      throw new Error(
-        `Cloudflare image generation failed (HTTP ${response.status}): ${errorText}`
-      );
+      throw classifyHttpError(response.status, errorText, response.headers);
     }
 
     const contentType = response.headers.get("content-type") || "";
@@ -113,7 +221,10 @@ export class CloudflareImageProvider implements ImageGenerationProvider {
     if (contentType.startsWith("image/")) {
       const arrayBuffer = await response.arrayBuffer();
       if (arrayBuffer.byteLength === 0) {
-        throw new Error("Image generation returned an empty image (0 bytes)");
+        throw new ImageGenerationError(
+          "Image generation returned an empty image (0 bytes)",
+          "IMAGE_GENERATION_FAILED"
+        );
       }
       const extension = contentType.includes("jpeg") || contentType.includes("jpg")
         ? "jpg"
@@ -133,14 +244,18 @@ export class CloudflareImageProvider implements ImageGenerationProvider {
       if (base64 && typeof base64 === "string") {
         const buf = Buffer.from(base64, "base64");
         if (buf.byteLength === 0) {
-          throw new Error("Image generation returned empty base64 data");
+          throw new ImageGenerationError(
+            "Image generation returned empty base64 data",
+            "IMAGE_GENERATION_FAILED"
+          );
         }
         return { buffer: buf, extension: "jpg" };
       }
 
-      throw new Error(
+      throw new ImageGenerationError(
         "Cloudflare Worker returned JSON but no recognizable image field. " +
-        `Keys received: ${Object.keys(json).join(", ")}`
+        `Keys received: ${Object.keys(json).join(", ")}`,
+        "IMAGE_GENERATION_FAILED"
       );
     }
 
@@ -150,8 +265,9 @@ export class CloudflareImageProvider implements ImageGenerationProvider {
       return { buffer: Buffer.from(arrayBuffer), extension: "png" };
     }
 
-    throw new Error(
-      `Cloudflare Worker returned an empty response (content-type: ${contentType || "none"})`
+    throw new ImageGenerationError(
+      `Cloudflare Worker returned an empty response (content-type: ${contentType || "none"})`,
+      "IMAGE_GENERATION_FAILED"
     );
   }
 }

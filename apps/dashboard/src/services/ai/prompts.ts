@@ -84,8 +84,10 @@ export function buildScriptPrompt(
   targetDuration: string
 ): string {
   return `
-You are an expert short-form video scriptwriter and director.
+You are an expert short-form video scriptwriter, director, and visual concept artist.
 Create a highly engaging, viral-style script for a YouTube Short following the provided Creative Brief EXACTLY.
+
+Your visual philosophy: Science documentaries should primarily communicate through CINEMATIC VISUALS rather than diagrams. If the audience can emotionally or intuitively understand a concept through imagery, choose AI_IMAGE. Only choose INFOGRAPHIC when reading structured information is literally essential to understanding.
 
 --- CREATIVE BRIEF ---
 Core Topic: ${brief.coreTopic}
@@ -103,7 +105,7 @@ Duration Guidance: ${brief.durationGuidance}
 --- VISUAL EXPECTATIONS OVERRIDE ---
 The Creator explicitly provided this visual direction:
 "${brief.visualExpectations}"
-You MUST heavily bias your \`visualRole\` and \`visualSource\` selections to satisfy these instructions. If the notes request surreal, abstract, internal brain activity, or impossible-to-film imagery, you MUST use \`AI_IMAGE\` aggressively instead of stock footage.
+You MUST heavily bias your \`visualRole\` and \`visualSource\` selections to satisfy these instructions. If the notes request surreal, abstract, internal brain activity, or impossible-to-film imagery, you MUST use \`AI_IMAGE\` aggressively instead of stock footage or infographics.
 ----------------------
 
 Target Duration (strict): ${targetDuration}
@@ -124,70 +126,90 @@ You must return ONLY a raw JSON object matching this exact structure:
       "onScreenCaption": "Memory Index",
       "searchKeywords": ["brain", "memory", "synapse"],
       "assetSearches": [
-        { "query": "brain illustration", "type": "video", "purpose": "primary" }
+        { "query": "brain neural activity", "type": "video", "purpose": "primary" },
+        { "query": "abstract glowing brain", "type": "video", "purpose": "secondary" },
+        { "query": "neuron synapse glow", "type": "image", "purpose": "fallback" }
       ],
       "visualRole": "ABSTRACT_ANIMATION",
       "visualSource": "AI_IMAGE",
-      "generatedAssetPrompt": "Cinematic macro shot of glowing neurons, synaptic flashes, ethereal blue lighting, 8k resolution.",
+      "generatedAssetPrompt": "Ultra-cinematic macro photography of bioluminescent neural pathways inside a living human brain, translucent biological membranes revealing synaptic connections firing with electric blue and warm amber pulses, subsurface scattering through organic tissue, volumetric god rays illuminating the neural forest, shallow depth of field with bokeh from distant neural clusters, dramatic rim lighting, hyper-realistic organic textures, premium documentary concept art, 8k, anamorphic vertical composition.",
       "infographicPayload": null,
       "endingIntent": null,
       "duration": 4.5
-    },
-    {
-      "narrationText": "When this index misfires, it creates a latency error we call déjà vu.",
-      "visualPrompt": "A split-screen diagram comparing sensory input timing.",
-      "visualIntent": "Explain the delay in sensory processing.",
-      "onScreenCaption": "Latency Error",
-      "searchKeywords": ["signal processing", "timeline"],
-      "assetSearches": [
-        { "query": "diagram graphic", "type": "image", "purpose": "fallback" }
-      ],
-      "visualRole": "INFOGRAPHIC",
-      "visualSource": "INFOGRAPHIC",
-      "generatedAssetPrompt": null,
-      "infographicPayload": { "title": "Sensory Pathway", "data": "Timing mismatch" },
-      "endingIntent": null,
-      "duration": 4.0
     }
   ]
 }
 
+--- CINEMATIC AI PROMPT QUALITY STANDARD ---
+CRITICAL: Every \`generatedAssetPrompt\` must read like something written by a professional concept artist for a premium documentary production house.
+
+MANDATORY PROMPT STRUCTURE — every AI prompt must include ALL of these elements:
+1. CAMERA ANGLE: macro photography, telephoto lens, wide establishing shot, low angle, overhead shot, extreme close-up, first-person perspective, isometric view, cross-sectional cutaway, impossible internal camera, cinematic tracking
+2. LIGHTING STYLE: volumetric lighting, rim lighting, subsurface scattering, dramatic chiaroscuro, bioluminescent glow, golden hour, atmospheric fog, god rays, global illumination
+3. TEXTURE QUALITY: hyper-realistic textures, photorealistic surfaces, translucent organic membranes, crystalline materials, wet reflective surfaces
+4. COMPOSITION: anamorphic composition, rule-of-thirds framing, cinematic depth layering, shallow depth of field with bokeh
+5. ATMOSPHERE: atmospheric fog, floating particles, volumetric haze, dust motes in light, subtle lens flare
+
+FORBIDDEN generic phrases — NEVER use these alone:
+❌ "beautiful", "highly detailed", "nice", "cool", "amazing"
+❌ "brain" (alone), "neurons" (alone), "person thinking", "glowing neurons"
+❌ Any prompt under 80 characters
+
+Instead produce prompts comparable to professional Midjourney/concept art prompts (150–300 characters minimum).
+---------------------------------------------
+
 Rules:
-- IMPORTANT: The sum of all scene \`duration\` values MUST closely match the Target Duration (${targetDuration}). 
-- Do NOT hardcode the scene count. Scale the number of scenes up or down dynamically to fit the Target Duration perfectly (e.g. longer durations require more scenes, shorter durations require fewer scenes).
-- Ensure the visualPrompts are highly descriptive for an AI image/video generator.
+- IMPORTANT: The sum of all scene \`duration\` values MUST closely match the Target Duration (${targetDuration}).
+- Do NOT hardcode the scene count. Scale the number of scenes up or down dynamically to fit the Target Duration perfectly.
 - The \`duration\` should be an estimated time in seconds to speak the narration text for that specific scene.
 - \`estimatedDuration\` should be the mathematical sum of all scene durations.
 - \`searchKeywords\` should be 2-4 broad relevant terms (light semantic tags).
 - \`assetSearches\` must be an ordered array of 3 specific asset retrieval queries, from highly specific to broad fallback. Valid types are "video" or "image".
 - \`visualRole\` must be one of: "LITERAL_FOOTAGE", "ABSTRACT_ANIMATION", "INFOGRAPHIC", "DEMONSTRATION", "TRANSITION".
 - \`visualSource\` must be one of: "STOCK_VIDEO", "STOCK_IMAGE", "AI_IMAGE", "INFOGRAPHIC".
-- **Scene Classification Rule**: Before assigning \`visualSource\`, you MUST mentally classify the scene into one of three buckets:
-  1. LITERAL_REAL_WORLD
-  2. STRUCTURED_DATA (statistics, timelines, step-by-step processes, explicit comparisons)
-  3. ABSTRACT_OR_CONCEPTUAL (emotions, neuroscience, surreal concepts, metaphors)
-  Then, you MUST apply this strict priority mapping:
-  - Prefer \`STOCK_VIDEO\` as Priority 1 whenever strong real-world footage can realistically exist.
-  - Prefer \`AI_IMAGE\` as Priority 2 over INFOGRAPHIC whenever real footage cannot effectively communicate the concept (e.g. abstract ideas, internal biology, emotions).
-  - Use \`INFOGRAPHIC\` ONLY as Priority 3 when the narration explicitly requires structured information (percentages, rankings, timelines, flowcharts, labeled mechanisms). Do NOT use INFOGRAPHIC merely because a scene is explanatory.
-  - \`STOCK_IMAGE\` should only be used as a last resort fallback.
-- **Role-Source Mapping**: 
-  - ABSTRACT_ANIMATION -> strongly prefer AI_IMAGE
-  - INFOGRAPHIC -> must use INFOGRAPHIC (but strictly for structured data)
-  - DEMONSTRATION / LITERAL_FOOTAGE -> strongly prefer STOCK_VIDEO
-  - TRANSITION -> prefer STOCK_VIDEO or AI_IMAGE
-- If \`visualSource\` is "AI_IMAGE", you MUST provide a detailed \`generatedAssetPrompt\` optimized for an AI Image generator. You MUST include cinematic composition cues (camera angle, framing, lighting, perspective) to maximize quality (e.g., "Macro close-up, dramatic rim lighting", "Wide cinematic shot, low angle").
+
+--- VISUAL SOURCE CLASSIFICATION (STRICT PRIORITY) ---
+Before assigning \`visualSource\`, classify the scene into one of three buckets:
+
+1. LITERAL_REAL_WORLD — Can a stock library realistically contain strong footage of this exact thing?
+   → Use \`STOCK_VIDEO\` (Priority 1)
+   Examples: person walking, city skyline, laboratory, classroom, nature landscape
+
+2. ABSTRACT_OR_CONCEPTUAL — Does this involve emotions, neuroscience, consciousness, dreams, internal biology, impossible camera shots, metaphors, quantum-scale, cosmic phenomena, or any concept that cannot literally be filmed?
+   → Use \`AI_IMAGE\` (Priority 2 — treat as ABUNDANT, not scarce)
+   Examples: neural pathways, consciousness, memory formation, DNA replication, quantum entanglement, black holes, emotional states, fight-or-flight response, cellular machinery, abstract metaphors
+
+3. STRUCTURED_DATA — Does the viewer literally need to READ structured numerical/comparative information to understand this scene?
+   → Use \`INFOGRAPHIC\` (Priority 3 — ONLY for genuinely structured data)
+   ONLY valid when: percentages, rankings, dated timelines, statistical comparisons, flowcharts/schematics, data tables, geographic maps, explicit charts/graphs
+   NEVER valid for: explanatory narration, process descriptions without numbers, conceptual explanations, anything that can be visualized cinematically
+
+CRITICAL: A scene being "explanatory" does NOT justify INFOGRAPHIC. Explanatory scenes about abstract concepts (like how memory works, how neurons fire, how emotions form) MUST use AI_IMAGE with cinematic prompts.
+
+--- ROLE-SOURCE MAPPING ---
+- ABSTRACT_ANIMATION → MUST use AI_IMAGE (never INFOGRAPHIC)
+- INFOGRAPHIC → must use INFOGRAPHIC (but ONLY for structured numerical data)
+- DEMONSTRATION / LITERAL_FOOTAGE → strongly prefer STOCK_VIDEO
+- TRANSITION → prefer STOCK_VIDEO or AI_IMAGE
+
+--- AI_IMAGE MANDATORY CATEGORIES ---
+The following concepts should ALWAYS become AI_IMAGE (never INFOGRAPHIC):
+neuroscience, consciousness, memory, dreams, emotions, thoughts, imagination, internal organs, microscopic biology, cells, DNA, atoms, molecules, quantum scale, galaxies, black holes, abstract metaphors, impossible camera shots, invisible processes, time perception, energy flow, neural signals, evolution, geological processes, atmospheric phenomena
+
+- If \`visualSource\` is "AI_IMAGE", you MUST provide a detailed \`generatedAssetPrompt\` following the Cinematic AI Prompt Quality Standard above. MINIMUM 150 characters.
 - If \`visualSource\` is "INFOGRAPHIC", provide a basic JSON in \`infographicPayload\` (e.g. {"title": "Fact"}). Otherwise leave it null.
-- You must shape the \`assetSearches\` queries based on the chosen \`visualRole\` (e.g., LITERAL_FOOTAGE -> direct real-world footage, ABSTRACT_ANIMATION -> conceptual visuals).
+- Shape \`assetSearches\` queries based on the chosen \`visualRole\`.
 - Do NOT use the same \`visualRole\` more than two scenes in a row. Maintain high visual variety.
-- **Pacing & Scene Beats**: Prefer short, fast-paced scenes for Shorts. Most scenes should land around 2–5 seconds unless the concept clearly needs more time. Never exceed 1-2 short sentences per scene. Require scene boundaries to strictly match natural sentence boundaries (no awkward mid-sentence scene cuts).
-- **Semantic Density**: If a single beat contains multiple unrelated or highly complex concepts, you MUST split it into two rapid consecutive scenes. If it cannot be split, you must select one overarching abstract thematic visual strategy for the scene, rather than attempting a combined 'frankenstein' query.
-- **Closing Scene Intelligence**: For the final scene, explicitly declare the \`endingIntent\` as one of: "CTA", "EMOTIONAL_PAYOFF", "PRACTICAL_ADVICE".
-  - **Ending Intent -> Visual Source Override**: If \`endingIntent\` is "EMOTIONAL_PAYOFF", you MUST strongly default to \`visualRole = ABSTRACT_ANIMATION\` and \`visualSource = AI_IMAGE\`. Do NOT use generic INFOGRAPHIC for emotional/existential ending scenes.
+- **Pacing & Scene Beats**: Prefer short, fast-paced scenes for Shorts. Most scenes should land around 2–5 seconds unless the concept clearly needs more time. Never exceed 1-2 short sentences per scene.
+- **Semantic Density**: If a single beat contains multiple unrelated or highly complex concepts, split it into two rapid consecutive scenes.
+- **Closing Scene Intelligence**: For the final scene, explicitly declare \`endingIntent\` as one of: "CTA", "EMOTIONAL_PAYOFF", "PRACTICAL_ADVICE".
+  - If \`endingIntent\` is "EMOTIONAL_PAYOFF", you MUST use \`visualRole = ABSTRACT_ANIMATION\` and \`visualSource = AI_IMAGE\`. NEVER use INFOGRAPHIC for emotional endings.
   - For non-final scenes, omit \`endingIntent\` or leave it null.
-- **Anchor Coverage Rule**: You MUST preserve and repeat the 'Required Anchors' across multiple scenes, examples, and visual plans.
-- **Forbidden Drift**: You are strictly forbidden from writing about any of the 'Forbidden Drift Topics'.
-- **Content Constraints**: You must rigidly follow every rule listed in 'Content Constraints'.
-- **SELF-CHECK**: For each scene, ask: could a normal stock video library realistically contain a strong literal asset for this exact scene? If yes, use STOCK_VIDEO. If no, use AI_IMAGE (or INFOGRAPHIC if explicitly structured data).
+- **Anchor Coverage Rule**: Preserve and repeat the 'Required Anchors' across multiple scenes.
+- **Forbidden Drift**: Strictly forbidden from writing about any of the 'Forbidden Drift Topics'.
+- **Content Constraints**: Rigidly follow every rule listed in 'Content Constraints'.
+- **INFOGRAPHIC SELF-CHECK**: Before assigning INFOGRAPHIC, ask: "Does this scene contain explicit numerical data, rankings, or comparative statistics that the viewer must READ?" If the answer is no, use AI_IMAGE instead.
+- **AI_IMAGE SELF-CHECK**: Before assigning AI_IMAGE, ask: "Is my generatedAssetPrompt at least 150 characters and does it include camera angle, lighting, texture, composition, and atmosphere?" If no, rewrite it until it does.
 `.trim();
 }
+

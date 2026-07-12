@@ -8,6 +8,7 @@ import { generateStructuredContent } from "./ai/gemini";
 import { buildCreativeBriefPrompt, buildScriptPrompt } from "./ai/prompts";
 import { scriptResponseSchema, creativeBriefSchema } from "@/validations/script.schema";
 import { normalizeSceneVisualRouting } from "./script/visual-routing-normalizer";
+import { enforcePromptQuality } from "./script/prompt-quality-enforcer";
 import type { Script } from "@prisma/client";
 
 /**
@@ -106,7 +107,14 @@ export async function generateScript(
       throw new Error(`AI response validation failed: ${errors}`);
     }
 
-    const aiData = normalizeSceneVisualRouting(parseResult.data, {
+    // 4b. Enforce prompt quality — rewrite generic/low-quality AI prompts
+    const enforcedData = enforcePromptQuality(parseResult.data, {
+      projectId: project.id,
+      niche: project.niche,
+      duration: project.targetDuration,
+    });
+
+    const aiData = normalizeSceneVisualRouting(enforcedData, {
       maxAiImageScenes: project.maxAiImageScenes,
       preferredMotionRatio: project.preferredMotionRatio,
       projectNiche: project.niche

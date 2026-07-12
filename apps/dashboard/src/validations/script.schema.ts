@@ -65,6 +65,9 @@ export const sceneSchema = z.object({
     .enum([
       "AI_QUOTA",
       "IMAGE_GENERATION_FAILED",
+      "IMAGE_PROVIDER_QUOTA",
+      "IMAGE_PROVIDER_AUTH",
+      "IMAGE_PROVIDER_NETWORK",
       "MOTION_SUBSTITUTION",
       "NO_STOCK_VIDEO_FOUND",
       "AI_DISABLED_FOR_PROJECT"

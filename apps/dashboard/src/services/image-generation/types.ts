@@ -29,3 +29,37 @@ export interface ImageGenerationProvider {
   readonly name: string;
   generate(prompt: string, options?: ImageGenerationOptions): Promise<ImageGenerationResult>;
 }
+
+// ---------------------------------------------------------------------------
+// Typed error for granular failure classification
+// ---------------------------------------------------------------------------
+
+export type ImageGenerationErrorCode =
+  | "IMAGE_PROVIDER_QUOTA"
+  | "IMAGE_PROVIDER_AUTH"
+  | "IMAGE_PROVIDER_NETWORK"
+  | "IMAGE_GENERATION_FAILED";
+
+/**
+ * Typed error thrown by image generation providers.
+ * Carries a `code` field so callers can distinguish between quota exhaustion,
+ * authentication failures, network issues, and generic generation failures.
+ */
+export class ImageGenerationError extends Error {
+  readonly code: ImageGenerationErrorCode;
+  readonly httpStatus?: number;
+  readonly responseBody?: string;
+
+  constructor(
+    message: string,
+    code: ImageGenerationErrorCode,
+    httpStatus?: number,
+    responseBody?: string
+  ) {
+    super(message);
+    this.name = "ImageGenerationError";
+    this.code = code;
+    this.httpStatus = httpStatus;
+    this.responseBody = responseBody;
+  }
+}

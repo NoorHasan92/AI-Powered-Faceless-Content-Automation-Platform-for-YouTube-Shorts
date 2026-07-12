@@ -12,6 +12,8 @@ import https from "https";
 import { getAssetsDir } from "@/lib/audio-utils";
 import { uploadAssetToCloudinary } from "@/lib/cloudinary-upload";
 import { generateImage } from "./image-generation/image-generation.service";
+import { ImageGenerationError } from "./image-generation/types";
+import { hashString, mulberry32, seededShuffle } from "@/lib/prng";
 
 const pexelsClient = createClient(process.env.PEXELS_API_KEY || "");
 
@@ -113,10 +115,25 @@ async function findPexelsAsset(searches: { query: string, type: "video" | "image
 }
 
 const CAMERA_MODIFIERS = [
-  "Macro close-up, extreme detail",
-  "Wide cinematic shot, expansive perspective",
-  "Overhead perspective, birds-eye view",
-  "Low-angle cinematic, dramatic framing"
+  "Cinematic establishing shot, wide-angle atmospheric perspective, expansive environmental framing",
+  "Extreme close-up macro photography, hyper-detailed textures, shallow depth of field",
+  "Low-angle dramatic composition, imposing perspective, heroic framing",
+  "Over-the-shoulder documentary framing, intimate perspective, observational style",
+  "First-person immersive perspective, subjective viewpoint, experiential framing",
+  "Isometric technical visualization, clean geometric composition, architectural clarity",
+  "Cinematic tracking composition, dynamic lateral movement implied, parallax depth",
+  "Cross-sectional cutaway visualization, revealing internal structure, anatomical perspective",
+  "Microscopic perspective, electron microscope aesthetic, false-color scientific imaging",
+  "Impossible internal camera, inside-the-subject viewpoint, endoscopic cinematic perspective",
+  "Satellite perspective, massive scale, orbital view",
+  "Telephoto compression, flattened perspective, intimate scale",
+  "Drone aerial shot, sweeping landscape perspective, top-down view",
+  "Dutch angle, dynamic tension, tilted horizon",
+  "Ultra-wide environmental shot, immersive context, panoramic field of view",
+  "Orbital cinematic composition, slow rotational camera, dynamic lighting shift",
+  "Slow tracking composition, steady forward movement, revealing depth",
+  "Interior anatomical perspective, organic macro photography",
+  "Microscopic molecular scale, atomic visualization, quantum probability clouds"
 ];
 
 /**
@@ -146,10 +163,23 @@ async function attemptAIImageGeneration(
     console.log(`[AssetService] Generating ${imageCount} AI Image(s) for scene ${scene.sceneIndex}...`);
 
     const results = [];
+    
+    // Create a seeded PRNG for this specific scene so renders remain deterministic
+    // Fallback to scene.id if scriptId isn't present, but scriptId + sceneIndex + basePrompt is extremely stable
+    const seedString = `${scene.scriptId || scene.id}-${scene.sceneIndex}-${basePrompt}`;
+    const random = mulberry32(hashString(seedString));
+    
+    // Copy and shuffle the camera modifiers for this scene
+    const shuffledModifiers = seededShuffle([...CAMERA_MODIFIERS], random);
+
     for (let i = 0; i < imageCount; i++) {
       let prompt = basePrompt;
-      if (imageCount > 1) {
-        prompt = `${CAMERA_MODIFIERS[i % CAMERA_MODIFIERS.length]} of ${basePrompt}`;
+      // Image 0 always uses the original "hero" prompt. Variations use the shuffled cameras.
+      if (i > 0) {
+        // Weave the camera modifier naturally into the prompt instead of crude prepending
+        const modifier = shuffledModifiers[(i - 1) % shuffledModifiers.length];
+        const cleanBase = basePrompt.replace(/^(cinematic|macro|wide|overhead|low.angle)[^,]*,\s*/i, "");
+        prompt = `${modifier} — ${cleanBase}`;
       }
       if (imageCount > 1) console.log(`[AssetService] Generating variation ${i + 1}/${imageCount}...`);
       const result = await generateImage(prompt, "portrait");
@@ -168,10 +198,25 @@ async function attemptAIImageGeneration(
       downgradeReason: null,
     };
   } catch (err: any) {
-    console.warn(
-      `[AssetService] AI Image generation failed for scene ${scene.sceneIndex}:`,
-      err?.message || String(err)
-    );
+    // Determine granular downgrade reason from typed error
+    let downgradeReason = "IMAGE_GENERATION_FAILED";
+    if (err instanceof ImageGenerationError) {
+      downgradeReason = err.code;
+      console.warn(
+        `[AssetService] AI Image generation failed for scene ${scene.sceneIndex}:`,
+        `code=${err.code}`,
+        `status=${err.httpStatus || 'N/A'}`,
+        `message=${err.message}`
+      );
+      if (err.responseBody) {
+        console.warn(`[AssetService] Response body: ${err.responseBody.slice(0, 500)}`);
+      }
+    } else {
+      console.warn(
+        `[AssetService] AI Image generation failed for scene ${scene.sceneIndex}:`,
+        err?.message || String(err)
+      );
+    }
 
     // On ANY failure, fall back to STOCK_VIDEO (motion), never STOCK_IMAGE (still)
     await prisma.scene.update({
@@ -179,14 +224,14 @@ async function attemptAIImageGeneration(
       data: {
         visualSource: "STOCK_VIDEO",
         motionTreatment: "LOOP_VIDEO",
-        routingDowngradeReason: "IMAGE_GENERATION_FAILED",
+        routingDowngradeReason: downgradeReason as any,
       },
     });
 
     return {
       finalAssetData: null,
       newAssetType: "STOCK_VIDEO",
-      downgradeReason: "IMAGE_GENERATION_FAILED",
+      downgradeReason,
     };
   }
 }

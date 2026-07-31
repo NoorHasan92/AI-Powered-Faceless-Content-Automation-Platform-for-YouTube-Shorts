@@ -77,10 +77,13 @@ enum RoutingDowngradeReason {
 // ---------------------------------------------------------------------------
 
 model User {
-  id        String   @id @default(uuid())
-  username  String   @unique
-  password  String   // bcrypt hashed password
-  createdAt DateTime @default(now())
+  id              String    @id @default(uuid())
+  username        String    @unique
+  email           String?   @unique // Optional initially to prevent breaking existing users, or we can make it required if we have a default/migration
+  password        String    // bcrypt hashed password
+  resetOtp        String?   // bcrypt hashed OTP for password reset
+  resetOtpExpires DateTime? // expiration time for the OTP
+  createdAt       DateTime  @default(now())
 }
 
 model Project {

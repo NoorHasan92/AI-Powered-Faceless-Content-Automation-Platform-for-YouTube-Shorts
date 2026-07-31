@@ -5,7 +5,7 @@ import { jwtVerify } from "jose";
 
 // Protect all routes except API auth, login, and static assets
 const protectedRoutes = ["/", "/projects", "/settings", "/analytics"];
-const publicRoutes = ["/login"];
+const publicRoutes = ["/login", "/forgot-password"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -16,8 +16,8 @@ export async function middleware(request: NextRequest) {
   }
 
   const session = request.cookies.get("session")?.value;
-  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route) && pathname !== "/login");
   const isPublicRoute = publicRoutes.includes(pathname);
+  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route)) && !isPublicRoute;
 
   // If the route is protected and no session exists, redirect to login
   if (isProtectedRoute && !session) {

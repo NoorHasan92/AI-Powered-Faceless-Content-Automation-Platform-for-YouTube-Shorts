@@ -5,6 +5,7 @@ import { useState, useTransition } from "react";
 import { Lock, User, Sparkles, ArrowRight } from "lucide-react";
 import { loginAction } from "@/actions/auth.actions";
 import SubmitButton from "@/components/ui/SubmitButton";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [error, setError] = useState("");
@@ -47,7 +48,7 @@ export default function LoginPage() {
 
             <div className="space-y-5">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-300 ml-1">Username</label>
+                <label className="text-sm font-medium text-slate-300 ml-1">Username or Email</label>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-400 transition-colors">
                     <User size={18} />
@@ -57,7 +58,7 @@ export default function LoginPage() {
                     name="username"
                     required
                     className="w-full pl-11 pr-4 py-3.5 bg-slate-950/50 border border-slate-800 rounded-xl text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all shadow-inner"
-                    placeholder="Enter your username"
+                    placeholder="Enter your username or email"
                   />
                 </div>
               </div>
@@ -65,9 +66,9 @@ export default function LoginPage() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between ml-1">
                   <label className="text-sm font-medium text-slate-300">Password</label>
-                  <a href="#" className="text-xs text-blue-400 hover:text-blue-300 hover:underline transition-all">
+                  <Link href="/forgot-password" className="text-xs text-blue-400 hover:text-blue-300 hover:underline transition-all">
                     Forgot password?
-                  </a>
+                  </Link>
                 </div>
                 <div className="relative group">
                   <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-slate-500 group-focus-within:text-blue-400 transition-colors">

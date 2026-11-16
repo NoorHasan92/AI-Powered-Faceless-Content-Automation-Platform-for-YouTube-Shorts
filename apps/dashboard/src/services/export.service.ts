@@ -9,6 +9,7 @@ import type { ExportJob } from "@prisma/client";
 import { composeScene, concatenateScenes } from "@/lib/ffmpeg-utils";
 import { getExportsDir } from "@/lib/audio-utils";
 import { uploadVideoToCloudinary } from "@/lib/cloudinary-upload";
+import { getBgmFilePath } from "@/services/bgm.service";
 import fs from "fs";
 import path from "path";
 
@@ -118,15 +119,16 @@ export async function triggerExport(
       scenePaths.push(sceneOutputPath);
     }
 
-    // 6. Concatenate all scenes into final video
-    const finalOutputPath = path.join(exportsDir, "final.mp4");
-    await concatenateScenes(scenePaths, finalOutputPath);
-
-    // 7. Calculate total duration
+    // 6. Calculate total duration
     const totalDuration = scenes.reduce(
       (sum, s) => sum + (s.voiceover?.duration || s.duration || 0),
       0
     );
+
+    // 7. Concatenate all scenes into final video with background music
+    const bgmPath = getBgmFilePath(project.bgmTrack);
+    const finalOutputPath = path.join(exportsDir, "final.mp4");
+    await concatenateScenes(scenePaths, finalOutputPath, bgmPath, totalDuration);
 
     // 8. Upload final video to Cloudinary (with fallback to local URL if size exceeds 100MB free limit)
     let outputUrl = `/pipeline/${projectId}/exports/final.mp4`;

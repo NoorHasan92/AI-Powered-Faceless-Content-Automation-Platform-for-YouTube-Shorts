@@ -73,15 +73,67 @@ export async function generateVoiceovers(projectId: string): Promise<ServiceResu
 
       // Generate audio with retry to handle transient Edge TTS WebSocket closures
       let audioFilePath = "";
+      let wordTimings: { word: string; start: number; end: number; duration: number }[] = [];
       let lastError: unknown = null;
       const maxRetries = 3;
+      const targetAudioFile = path.join(sceneDir, "audio.mp3");
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
           const tts = new MsEdgeTTS();
-          await tts.setMetadata(ttsVoice, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
-          const result = await tts.toFile(sceneDir, scene.narrationText);
-          audioFilePath = result.audioFilePath;
+          await tts.setMetadata(ttsVoice, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3, {
+            wordBoundaryEnabled: true,
+          });
+
+          wordTimings = [];
+          const fileWriteStream = fs.createWriteStream(targetAudioFile);
+
+          const { audioStream, metadataStream } = tts.toStream(scene.narrationText);
+
+          if (metadataStream) {
+            metadataStream.on("data", (chunk: Buffer) => {
+              try {
+                const parsed = JSON.parse(chunk.toString("utf8"));
+                for (const item of parsed.Metadata || []) {
+                  if (item.Type === "WordBoundary") {
+                    const start = parseFloat((item.Data.Offset / 10000000).toFixed(3));
+                    const dur = parseFloat((item.Data.Duration / 10000000).toFixed(3));
+                    const end = parseFloat((start + dur).toFixed(3));
+                    wordTimings.push({
+                      word: item.Data.text.Text,
+                      start,
+                      end,
+                      duration: dur,
+                    });
+                  }
+                }
+              } catch {}
+            });
+          }
+
+          await new Promise<void>((resolve, reject) => {
+            audioStream.pipe(fileWriteStream);
+            audioStream.on("error", (err) => {
+              fileWriteStream.close();
+              reject(err);
+            });
+            fileWriteStream.on("finish", () => {
+              fileWriteStream.close();
+              resolve();
+            });
+            fileWriteStream.on("error", (err) => {
+              reject(err);
+            });
+          });
+
+          audioFilePath = targetAudioFile;
+          // Persist ground-truth words on disk as backup
+          fs.writeFileSync(
+            path.join(sceneDir, "words.json"),
+            JSON.stringify(wordTimings, null, 2),
+            "utf8"
+          );
+
           lastError = null;
           break;
         } catch (err) {
@@ -118,7 +170,7 @@ export async function generateVoiceovers(projectId: string): Promise<ServiceResu
         console.warn(`[VoiceoverService] Cloudinary audio upload failed for scene ${scene.sceneIndex}, falling back to local URL:`, uploadErr);
       }
 
-      // Create Voiceover record in DB
+      // Create Voiceover record in DB with ground-truth word timestamps
       const voiceover = await prisma.voiceover.create({
         data: {
           sceneId: scene.id,
@@ -127,6 +179,7 @@ export async function generateVoiceovers(projectId: string): Promise<ServiceResu
           audioUrl,
           localPath: audioFilePath,
           duration,
+          wordTimings: wordTimings as any,
           status: "COMPLETED",
         },
       });

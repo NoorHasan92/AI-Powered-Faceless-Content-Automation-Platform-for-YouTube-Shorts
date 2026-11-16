@@ -55,6 +55,7 @@ export async function createProjectAction(formData: FormData) {
     aspectRatio: formData.get("aspectRatio") || (formData.get("videoFormat") === "LONG_FORM" ? "16:9" : "9:16"),
     subtopics,
     voice: formData.get("voice"),
+    bgmTrack: formData.get("bgmTrack") || "cinematic_documentary",
     specificTopic: formData.get("specificTopic") || undefined,
     creatorInstructions: formData.get("creatorInstructions") || undefined,
   };

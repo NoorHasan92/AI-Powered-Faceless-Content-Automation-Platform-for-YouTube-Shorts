@@ -147,12 +147,75 @@ export async function generateScript(
       projectNiche: project.niche
     });
 
-    // 7c. Sanitize scene durations against actual speech rate (~2.3 words/sec)
-    // Prevents hallucinated durations (e.g. 30s for a 14-word scene) from corrupting estimates
+    // 7c. Ensure Long-Form scripts achieve the selected runtime via automated narrative expansion
+    let currentTotalWords = aiData.scenes.reduce(
+      (sum, s) => sum + s.narrationText.trim().split(/\s+/).filter(Boolean).length,
+      0
+    );
+
+    if (metrics.isLongForm && currentTotalWords < metrics.minWords) {
+      const shortfall = metrics.minWords - currentTotalWords;
+      console.log(
+        `[ScriptService] Script word count (${currentTotalWords} words) is below target minimum (${metrics.minWords} words). Requesting narrative expansion of ~${shortfall} words...`
+      );
+
+      const expansionPrompt = `
+You are the lead documentary scriptwriter for this project.
+Your initial script contains ${aiData.scenes.length} scenes with ${currentTotalWords} spoken words.
+However, to fill "${targetDuration}" at human TTS speaking pace (~2.4 words/sec), you MUST reach at least ${metrics.minWords} spoken words (shortfall: ${shortfall} words).
+
+Core Topic: ${creativeBrief.coreTopic}
+Content Angle: ${creativeBrief.contentAngle}
+Research Dossier:
+${JSON.stringify(researchDossier?.factualDossier?.slice(0, 6) || [], null, 2)}
+
+Existing Scenes:
+${aiData.scenes.map((s, idx) => `[Scene ${idx + 1}] (${s.onScreenCaption}): "${s.narrationText}"`).join("\n")}
+
+TASK:
+Write 4 to 8 additional consecutive documentary scenes that delve deeper into the factual mechanisms, eyewitness quotes, or long-term societal aftermath.
+DO NOT use INFOGRAPHIC. All scenes must be STOCK_VIDEO or AI_IMAGE.
+
+Return ONLY a raw JSON object with this exact structure:
+{
+  "additionalScenes": [
+    {
+      "chapterIndex": ${aiData.scenes[aiData.scenes.length - 1].chapterIndex || 1},
+      "chapterTitle": "${aiData.scenes[aiData.scenes.length - 1].chapterTitle || "Act Aftermath"}",
+      "narrationText": "1-2 detailed, punchy sentences.",
+      "visualPrompt": "Detailed cinematic prompt for video/image.",
+      "onScreenCaption": "Short caption",
+      "searchKeywords": ["stock", "search", "terms"],
+      "assetSearches": [
+        { "query": "primary stock video query", "type": "video", "purpose": "primary" },
+        { "query": "fallback query", "type": "video", "purpose": "secondary" }
+      ],
+      "visualRole": "LITERAL_FOOTAGE",
+      "visualSource": "STOCK_VIDEO",
+      "duration": 6.5
+    }
+  ]
+}
+`.trim();
+
+      try {
+        const rawExpansion = await generateStructuredContent(expansionPrompt);
+        if (rawExpansion && Array.isArray((rawExpansion as any).additionalScenes)) {
+          const newScenes = (rawExpansion as any).additionalScenes;
+          console.log(`[ScriptService] Successfully generated ${newScenes.length} additional scenes.`);
+          aiData.scenes.push(...newScenes);
+        }
+      } catch (expansionErr) {
+        console.warn("[ScriptService] Script expansion turn failed, proceeding with original scenes:", expansionErr);
+      }
+    }
+
+    // 7d. Sanitize scene durations against actual speech rate (~2.4 words/sec)
+    // Prevents hallucinated durations from corrupting estimates
     let totalRealisticDuration = 0;
     for (const scene of aiData.scenes) {
       const words = scene.narrationText.trim().split(/\s+/).filter(Boolean).length;
-      const speechDuration = parseFloat((words / 2.3).toFixed(2));
+      const speechDuration = parseFloat((words / 2.4).toFixed(2));
       if (scene.duration > speechDuration * 1.8 && scene.duration > 7.0) {
         console.warn(
           `[ScriptService] Clamping bloated duration (${scene.duration}s for ${words} words) to ${Math.max(speechDuration, 4.0)}s`

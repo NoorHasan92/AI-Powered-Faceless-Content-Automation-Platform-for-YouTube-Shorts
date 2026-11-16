@@ -26,11 +26,11 @@ export function getDurationMetrics(targetDuration: string): DurationMetrics {
   if (norm.includes("8-10") || norm.includes("10 min") || norm.includes("full documentary")) {
     return {
       targetSeconds: 540,
-      minWords: 1150,
-      maxWords: 1450,
-      minScenes: 45,
-      maxScenes: 65,
-      avgWordsPerScene: "18-25 words",
+      minWords: 1400,
+      maxWords: 1800,
+      minScenes: 55,
+      maxScenes: 75,
+      avgWordsPerScene: "20-26 words",
       maxSceneDuration: 10.0,
       isLongForm: true,
     };
@@ -40,11 +40,11 @@ export function getDurationMetrics(targetDuration: string): DurationMetrics {
   if (norm.includes("5-8") || norm.includes("8 min") || norm.includes("deep dive")) {
     return {
       targetSeconds: 390,
-      minWords: 750,
-      maxWords: 1000,
-      minScenes: 32,
-      maxScenes: 48,
-      avgWordsPerScene: "18-24 words",
+      minWords: 900,
+      maxWords: 1250,
+      minScenes: 36,
+      maxScenes: 52,
+      avgWordsPerScene: "20-26 words",
       maxSceneDuration: 9.5,
       isLongForm: true,
     };
@@ -54,11 +54,11 @@ export function getDurationMetrics(targetDuration: string): DurationMetrics {
   if (norm.includes("3-5") || norm.includes("5 min") || norm.includes("mini-doc") || norm.includes("explainer")) {
     return {
       targetSeconds: 240,
-      minWords: 450,
-      maxWords: 620,
-      minScenes: 20,
-      maxScenes: 30,
-      avgWordsPerScene: "16-22 words",
+      minWords: 550,
+      maxWords: 750,
+      minScenes: 24,
+      maxScenes: 34,
+      avgWordsPerScene: "18-24 words",
       maxSceneDuration: 9.0,
       isLongForm: true,
     };

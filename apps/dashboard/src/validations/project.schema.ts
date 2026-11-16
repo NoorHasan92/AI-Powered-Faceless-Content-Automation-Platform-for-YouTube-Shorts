@@ -31,6 +31,9 @@ export const createProjectSchema = z.object({
   voice: z
     .string()
     .min(1, "Voice selection is required"),
+  bgmTrack: z
+    .string()
+    .optional(),
   specificTopic: z
     .string()
     .optional(),

@@ -77,14 +77,27 @@ async function findPexelsAsset(
 
   for (const search of searches) {
     const { query, type } = search;
+    // Anti-repetition: randomly sample among the top 3 result pages
+    const randomPage = Math.floor(Math.random() * 3) + 1;
 
     if (type === "video") {
       try {
-        const videoResult = await pexelsClient.videos.search({
+        let videoResult = await pexelsClient.videos.search({
           query,
-          per_page: 15,
+          per_page: 20,
+          page: randomPage,
           orientation: pexelsOrientation,
         });
+
+        // Fallback to page 1 if random page had no videos
+        if (isPexelsError(videoResult) || !videoResult.videos || videoResult.videos.length === 0) {
+          videoResult = await pexelsClient.videos.search({
+            query,
+            per_page: 20,
+            page: 1,
+            orientation: pexelsOrientation,
+          });
+        }
 
         if (!isPexelsError(videoResult) && videoResult.videos.length > 0) {
           const randomIndex = Math.floor(Math.random() * videoResult.videos.length);
@@ -117,11 +130,21 @@ async function findPexelsAsset(
       }
     } else if (type === "image") {
       try {
-        const photoResult = await pexelsClient.photos.search({
+        let photoResult = await pexelsClient.photos.search({
           query,
-          per_page: 15,
+          per_page: 20,
+          page: randomPage,
           orientation: pexelsOrientation,
         });
+
+        if (isPexelsError(photoResult) || !photoResult.photos || photoResult.photos.length === 0) {
+          photoResult = await pexelsClient.photos.search({
+            query,
+            per_page: 20,
+            page: 1,
+            orientation: pexelsOrientation,
+          });
+        }
 
         if (!isPexelsError(photoResult) && photoResult.photos.length > 0) {
           const randomIndex = Math.floor(Math.random() * photoResult.photos.length);

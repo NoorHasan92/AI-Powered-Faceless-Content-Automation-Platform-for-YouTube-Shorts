@@ -56,6 +56,7 @@ export async function createProject(
         videoFormat: input.videoFormat || "SHORTS",
         aspectRatio: input.aspectRatio || "9:16",
         subtopics: input.subtopics || [],
+        bgmTrack: input.bgmTrack || "cinematic_documentary",
         voice: input.voice,
         specificTopic: input.specificTopic,
         creatorInstructions: input.creatorInstructions,

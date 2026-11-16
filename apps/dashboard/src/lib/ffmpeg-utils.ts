@@ -202,26 +202,87 @@ export async function composeScene(options: {
 }
 
 /**
- * Concatenate multiple scene clips into one final video.
+ * Concatenate multiple scene clips into one final video, with optional continuous background music.
  */
-export function concatenateScenes(scenePaths: string[], outputPath: string): Promise<void> {
+export function concatenateScenes(
+  scenePaths: string[],
+  outputPath: string,
+  bgmPath?: string | null,
+  totalDuration?: number
+): Promise<void> {
   return new Promise((resolve, reject) => {
     // Write a concat list file for FFmpeg
     const listPath = outputPath.replace(".mp4", "_list.txt");
     const listContent = scenePaths.map(p => `file '${p.replace(/\\/g, "/")}'`).join("\n");
     fs.writeFileSync(listPath, listContent);
 
+    // If no BGM, do simple direct stream copy
+    if (!bgmPath || !fs.existsSync(bgmPath)) {
+      ffmpeg()
+        .input(listPath)
+        .inputOptions(["-f", "concat", "-safe", "0"])
+        .outputOptions([
+          "-c", "copy", // No re-encoding since all scenes share the same codec settings
+        ])
+        .output(outputPath)
+        .on("end", () => {
+          try { fs.unlinkSync(listPath); } catch { /* ignore */ }
+          resolve();
+        })
+        .on("error", (err) => reject(new Error(`FFmpeg concat error: ${err.message}`)))
+        .run();
+      return;
+    }
+
+    // With BGM: first concat scenes, then overlay ducked BGM track
+    const tempConcatPath = outputPath.replace(".mp4", "_temp_concat.mp4");
+
     ffmpeg()
       .input(listPath)
       .inputOptions(["-f", "concat", "-safe", "0"])
-      .outputOptions([
-        "-c", "copy", // No re-encoding since all scenes share the same codec settings
-      ])
-      .output(outputPath)
+      .outputOptions(["-c", "copy"])
+      .output(tempConcatPath)
       .on("end", () => {
-        // Clean up the list file
         try { fs.unlinkSync(listPath); } catch { /* ignore */ }
-        resolve();
+
+        // Audio mixing pass: loop BGM at 12% volume with gentle fades
+        const duration = totalDuration || 60;
+        const fadeOutStart = Math.max(0, duration - 2.5);
+
+        ffmpeg()
+          .input(tempConcatPath)
+          .input(bgmPath)
+          .inputOptions(["-stream_loop", "-1"])
+          .complexFilter([
+            `[1:a]volume=0.12,afade=t=in:st=0:d=2,afade=t=out:st=${fadeOutStart.toFixed(2)}:d=2[bgm]`,
+            `[0:a][bgm]amix=inputs=2:duration=first:dropout_transition=2[outa]`,
+          ])
+          .outputOptions([
+            "-map", "0:v",
+            "-map", "[outa]",
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-shortest",
+          ])
+          .output(outputPath)
+          .on("end", () => {
+            try { fs.unlinkSync(tempConcatPath); } catch { /* ignore */ }
+            resolve();
+          })
+          .on("error", (mixErr) => {
+            console.warn("[FFmpeg] BGM mixing pass encountered error, falling back to tempConcat:", mixErr);
+            try {
+              if (fs.existsSync(tempConcatPath)) {
+                fs.copyFileSync(tempConcatPath, outputPath);
+                fs.unlinkSync(tempConcatPath);
+              }
+              resolve();
+            } catch (fallbackErr) {
+              reject(new Error(`FFmpeg BGM mix error: ${mixErr.message}`));
+            }
+          })
+          .run();
       })
       .on("error", (err) => reject(new Error(`FFmpeg concat error: ${err.message}`)))
       .run();

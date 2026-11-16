@@ -95,6 +95,7 @@ model Project {
   videoFormat String        @default("SHORTS") // "SHORTS" or "LONG_FORM"
   aspectRatio String        @default("9:16")   // "9:16" or "16:9"
   subtopics   String[]      @default([])       // User requested subtopics / deep dive angles
+  bgmTrack    String?                          // "cinematic_documentary", "investigative_mystery", etc.
   voice       String        @default("en-US-AvaMultilingualNeural")
   status      ProjectStatus @default(DRAFT)
   specificTopic       String?
@@ -171,6 +172,7 @@ model Voiceover {
   audioUrl    String?          @db.Text                 // Remote URL or CDN path
   localPath   String?                                   // Local filesystem path
   duration    Float?                                     // Actual audio duration in seconds
+  wordTimings Json?                                     // Ground-truth word timestamps [{ word, start, end, duration }]
   status      GenerationStatus @default(PENDING)
   createdAt   DateTime         @default(now())
 

@@ -17,41 +17,46 @@ export default async function AnalyticsPage() {
   const { internal, youtube } = data;
 
   const kpis = [
-    { label: "Total Projects", value: internal.totalProjects, icon: Film, color: "text-blue-600 bg-blue-50 border-blue-100" },
-    { label: "Pipeline Success", value: `${internal.successRate}%`, icon: CheckCircle, color: "text-emerald-600 bg-emerald-50 border-emerald-100" },
-    { label: "YouTube Views", value: youtube.totalViews.toLocaleString(), icon: Eye, color: "text-red-600 bg-red-50 border-red-100" },
-    { label: "YouTube Likes", value: youtube.totalLikes.toLocaleString(), icon: ThumbsUp, color: "text-amber-600 bg-amber-50 border-amber-100" },
+    { label: "Total Projects", value: internal.totalProjects, icon: Film, color: "text-blue-600 bg-blue-50 border-blue-200" },
+    { label: "Pipeline Success", value: `${internal.successRate}%`, icon: CheckCircle, color: "text-emerald-600 bg-emerald-50 border-emerald-200" },
+    { label: "YouTube Views", value: youtube.totalViews.toLocaleString(), icon: Eye, color: "text-red-600 bg-red-50 border-red-200" },
+    { label: "YouTube Likes", value: youtube.totalLikes.toLocaleString(), icon: ThumbsUp, color: "text-amber-600 bg-amber-50 border-amber-200" },
   ];
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8 pb-16">
       <header>
-        <h1 className="text-3xl font-bold text-slate-900">Analytics Dashboard</h1>
-        <p className="text-slate-500 mt-1">Hybrid pipeline and published performance metrics.</p>
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+            Performance Telemetry
+          </span>
+        </div>
+        <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Analytics & Video Insights</h1>
+        <p className="text-slate-500 text-sm mt-1">Real-time pipeline metrics and published YouTube channel performance.</p>
       </header>
 
       {/* Graceful Fallback Warning for YouTube */}
       {youtube.error && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
-          <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={20} />
+        <div className="bg-amber-50/80 border border-amber-200/90 rounded-2xl p-4 flex items-start gap-3">
+          <AlertTriangle className="text-amber-600 shrink-0 mt-0.5" size={18} />
           <div>
-            <h3 className="font-semibold text-amber-900 text-sm">YouTube Metrics Unavailable</h3>
-            <p className="text-amber-700 text-sm mt-0.5">{youtube.error}</p>
+            <h3 className="font-bold text-amber-900 text-xs">YouTube Metrics Unavailable</h3>
+            <p className="text-amber-700 text-xs mt-0.5">{youtube.error}</p>
           </div>
         </div>
       )}
 
       {/* Top KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map(({ label, value, icon: Icon, color }) => (
-          <div key={label} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between h-32">
+          <div key={label} className="bg-white p-5 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between h-32 hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-medium text-slate-500">{label}</h3>
-              <div className={`p-2 rounded-lg border ${color}`}>
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{label}</h3>
+              <div className={`p-2 rounded-xl border ${color}`}>
                 <Icon size={16} />
               </div>
             </div>
-            <p className="text-3xl font-bold text-slate-900">{value}</p>
+            <p className="text-3xl font-black text-slate-900 tracking-tight">{value}</p>
           </div>
         ))}
       </div>

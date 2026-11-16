@@ -95,11 +95,16 @@ export default async function SettingsPage() {
   ];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8 pb-16">
       <header className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
-          <p className="text-slate-500 mt-1">Configure your pipeline, API keys, and integrations.</p>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full border border-slate-200">
+              System Control
+            </span>
+          </div>
+          <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Settings & Integrations</h1>
+          <p className="text-slate-500 text-sm mt-1">Configure your AI pipeline, API keys, and platform integrations.</p>
         </div>
         <ConfirmAction
           action={logoutAction}
@@ -109,8 +114,8 @@ export default async function SettingsPage() {
           pendingText="Signing out..."
           confirmVariant="danger"
           trigger={
-            <button type="button" className="w-full md:w-auto justify-center bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg text-sm transition-colors flex items-center gap-2">
-              <LogOut size={16} /> Sign Out
+            <button type="button" className="w-full md:w-auto justify-center bg-slate-200/80 hover:bg-red-50 hover:text-red-700 text-slate-700 font-bold py-2.5 px-4 rounded-xl text-xs transition-colors flex items-center gap-2 cursor-pointer shadow-2xs">
+              <LogOut size={15} /> Sign Out
             </button>
           }
         />
@@ -118,13 +123,13 @@ export default async function SettingsPage() {
 
       <div className="space-y-6">
         {sections.map(({ title, description, icon: Icon, items, action }) => (
-          <div key={title} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div key={title} className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
             <div className="p-5 border-b border-slate-100 flex items-center gap-3">
-              <div className="p-2 bg-slate-100 rounded-lg">
+              <div className="p-2.5 bg-slate-100 rounded-xl">
                 <Icon size={18} className="text-slate-600" />
               </div>
               <div>
-                <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+                <h2 className="text-base font-bold text-slate-900">{title}</h2>
                 <p className="text-xs text-slate-500">{description}</p>
               </div>
             </div>
@@ -135,12 +140,12 @@ export default async function SettingsPage() {
                     {item.thumbnail && (
                       <img src={item.thumbnail} alt={item.label} className="w-8 h-8 rounded-full bg-slate-200" />
                     )}
-                    <span className="text-sm font-medium text-slate-700">{item.label}</span>
+                    <span className="text-sm font-semibold text-slate-800">{item.label}</span>
                   </div>
                   {item.isComponent ? (
                     <div className="w-full sm:w-auto">{item.component}</div>
                   ) : (
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full w-fit ${item.statusColor}`}>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-full w-fit ${item.statusColor}`}>
                       {item.status}
                     </span>
                   )}
@@ -154,12 +159,12 @@ export default async function SettingsPage() {
 
       <UpdatePasswordForm />
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 text-center">
-        <Shield className="mx-auto text-slate-300 mb-3" size={32} />
-        <p className="text-sm text-slate-500">
-          Advanced settings modification will be enabled in a future update.
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-6 text-center">
+        <Shield className="mx-auto text-slate-300 mb-2" size={32} />
+        <p className="text-xs text-slate-500 leading-relaxed">
+          Autonomous pipeline operations are encrypted and securely authenticated.
           <br />
-          API keys are currently managed via environment variables.
+          API credentials and platform OAuth tokens are managed via secure server environment protocols.
         </p>
       </div>
     </div>

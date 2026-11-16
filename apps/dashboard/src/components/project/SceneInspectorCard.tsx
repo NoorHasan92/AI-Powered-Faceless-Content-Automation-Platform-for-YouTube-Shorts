@@ -18,7 +18,14 @@ export default function SceneInspectorCard({ scene }: SceneInspectorCardProps) {
     <div className="p-5 bg-white rounded-xl border border-slate-200 shadow-sm space-y-4">
       {/* Header */}
       <div className="flex justify-between items-center text-sm">
-        <span className="font-bold text-slate-800">Scene {scene.sceneIndex + 1}</span>
+        <div className="flex items-center gap-2">
+          <span className="font-bold text-slate-800">Scene {scene.sceneIndex + 1}</span>
+          {(scene as any).chapterTitle && (
+            <span className="text-[11px] font-semibold px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+              {(scene as any).chapterTitle}
+            </span>
+          )}
+        </div>
         <span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-semibold">
           {scene.duration}s
         </span>

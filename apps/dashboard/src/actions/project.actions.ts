@@ -41,11 +41,19 @@ export async function archiveProjectAction(projectId: string) {
  * Called by the project creation form on /projects.
  */
 export async function createProjectAction(formData: FormData) {
+  const rawSubtopics = formData.get("subtopics");
+  const subtopics = typeof rawSubtopics === "string"
+    ? rawSubtopics.split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
+    : [];
+
   const raw = {
     title: formData.get("title"),
     niche: formData.get("niche"),
     tone: formData.get("tone"),
     targetDuration: formData.get("targetDuration"),
+    videoFormat: formData.get("videoFormat") || "SHORTS",
+    aspectRatio: formData.get("aspectRatio") || (formData.get("videoFormat") === "LONG_FORM" ? "16:9" : "9:16"),
+    subtopics,
     voice: formData.get("voice"),
     specificTopic: formData.get("specificTopic") || undefined,
     creatorInstructions: formData.get("creatorInstructions") || undefined,

@@ -61,13 +61,45 @@ export async function generateVoiceovers(projectId: string): Promise<ServiceResu
         fs.mkdirSync(sceneDir, { recursive: true });
       }
 
-      // Initialize TTS client (one per scene to avoid websocket issues)
-      const tts = new MsEdgeTTS();
-      await tts.setMetadata(ttsVoice, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
+      // Clean up any stale audio file from previous failed attempts
+      const staleAudioFile = path.join(sceneDir, "audio.mp3");
+      try {
+        if (fs.existsSync(staleAudioFile)) {
+          fs.unlinkSync(staleAudioFile);
+        }
+      } catch {
+        /* ignore */
+      }
 
-      // Generate the audio file
-      const result = await tts.toFile(sceneDir, scene.narrationText);
-      const audioFilePath = result.audioFilePath;
+      // Generate audio with retry to handle transient Edge TTS WebSocket closures
+      let audioFilePath = "";
+      let lastError: unknown = null;
+      const maxRetries = 3;
+
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          const tts = new MsEdgeTTS();
+          await tts.setMetadata(ttsVoice, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
+          const result = await tts.toFile(sceneDir, scene.narrationText);
+          audioFilePath = result.audioFilePath;
+          lastError = null;
+          break;
+        } catch (err) {
+          lastError = err;
+          console.warn(`[VoiceoverService] TTS attempt ${attempt}/${maxRetries} failed for scene ${scene.sceneIndex}:`, err);
+          if (attempt < maxRetries) {
+            await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+          }
+        }
+      }
+
+      if (!audioFilePath || lastError) {
+        throw new Error(
+          `Failed to generate TTS for scene ${scene.sceneIndex} after ${maxRetries} attempts: ${
+            lastError instanceof Error ? lastError.message : String(lastError)
+          }`
+        );
+      }
 
       // Read real exact duration using mp3-duration parser
       const duration: number = await new Promise((resolve, reject) => {
@@ -77,8 +109,14 @@ export async function generateVoiceovers(projectId: string): Promise<ServiceResu
         });
       });
 
-      // Upload to Cloudinary
-      const upload = await uploadAudioToCloudinary(audioFilePath, projectId, scene.sceneIndex);
+      // Upload to Cloudinary with fallback to local path if Cloudinary fails
+      let audioUrl = `/pipeline/${projectId}/audio/scene-${scene.sceneIndex}/audio.mp3`;
+      try {
+        const upload = await uploadAudioToCloudinary(audioFilePath, projectId, scene.sceneIndex);
+        audioUrl = upload.secure_url;
+      } catch (uploadErr) {
+        console.warn(`[VoiceoverService] Cloudinary audio upload failed for scene ${scene.sceneIndex}, falling back to local URL:`, uploadErr);
+      }
 
       // Create Voiceover record in DB
       const voiceover = await prisma.voiceover.create({
@@ -86,7 +124,7 @@ export async function generateVoiceovers(projectId: string): Promise<ServiceResu
           sceneId: scene.id,
           provider: "msedge-tts",
           voiceId: ttsVoice,
-          audioUrl: upload.secure_url,
+          audioUrl,
           localPath: audioFilePath,
           duration,
           status: "COMPLETED",
@@ -100,6 +138,9 @@ export async function generateVoiceovers(projectId: string): Promise<ServiceResu
       });
 
       voiceovers.push(voiceover);
+
+      // Brief backoff between scenes to prevent rate-limiting on Edge TTS WebSocket
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
 
     return { success: true, data: voiceovers };

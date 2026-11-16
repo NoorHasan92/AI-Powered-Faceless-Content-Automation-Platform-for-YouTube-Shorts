@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   BarChart,
   Bar,
@@ -21,6 +22,25 @@ interface AnalyticsChartsProps {
 const COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#64748b"];
 
 export default function AnalyticsCharts({ pipelineTrend, projectsByNiche }: AnalyticsChartsProps) {
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return (
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white p-4 md:p-6 rounded-xl border border-slate-200 shadow-sm h-80 animate-pulse flex items-center justify-center text-slate-300 text-sm">
+          Loading Activity Charts...
+        </div>
+        <div className="bg-white p-4 md:p-6 rounded-xl border border-slate-200 shadow-sm h-80 animate-pulse flex items-center justify-center text-slate-300 text-sm">
+          Loading Niche Distribution...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       

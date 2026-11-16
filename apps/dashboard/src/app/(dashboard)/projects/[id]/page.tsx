@@ -17,6 +17,7 @@ import VoiceoverPanel from "@/components/voiceover/VoiceoverPanel";
 import SubtitlePanel from "@/components/subtitle/SubtitlePanel";
 import ExportPanel from "@/components/export/ExportPanel";
 import AssetPanel from "@/components/asset/AssetPanel";
+import ResearchPanel from "@/components/project/ResearchPanel";
 import { generateVoiceoverAction } from "@/actions/voiceover.actions";
 import { generateSubtitlesAction } from "@/actions/subtitle.actions";
 import { generateAssetsAction } from "@/actions/asset.actions";
@@ -59,14 +60,35 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
         </Link>
         <div className="flex flex-col md:flex-row md:justify-between items-start gap-4">
           <div className="min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`text-[11px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${
+                project.videoFormat === "LONG_FORM"
+                  ? "bg-purple-100 text-purple-800 border border-purple-200"
+                  : "bg-blue-100 text-blue-800 border border-blue-200"
+              }`}>
+                {project.videoFormat === "LONG_FORM" ? "16:9 Long-Form" : "9:16 Short"}
+              </span>
+              <span className="text-xs text-slate-400">•</span>
+              <span className="text-xs font-semibold text-slate-600">{project.targetDuration}</span>
+            </div>
             <h1 className="text-2xl md:text-3xl font-bold text-slate-900 leading-tight">{project.title}</h1>
             <p className="text-slate-500 mt-1 capitalize text-sm md:text-base">
-              {project.niche} • {project.tone} • {project.targetDuration} • {project.voice.split("-")[2].replace("MultilingualNeural", "")}
+              {project.niche} • {project.tone} • {project.voice.split("-")[2].replace("MultilingualNeural", "")}
             </p>
             {project.specificTopic && (
               <p className="text-blue-600 mt-1.5 text-sm font-medium">
                 Topic Seed: {project.specificTopic}
               </p>
+            )}
+            {project.subtopics && project.subtopics.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5 items-center">
+                <span className="text-[11px] font-bold text-slate-500 uppercase">Research Angles:</span>
+                {project.subtopics.map((st, i) => (
+                  <span key={i} className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
+                    {st}
+                  </span>
+                ))}
+              </div>
             )}
             {project.creatorInstructions && (
               <div className="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-lg max-w-2xl overflow-hidden">
@@ -163,6 +185,10 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
             status={project.status} 
             onGenerateAction={triggerScriptAgent} 
           />
+
+          {project.script?.researchDossier && (
+            <ResearchPanel dossier={project.script.researchDossier as any} />
+          )}
 
           {project.script && project.script.scenes.length > 0 && (
             <SceneInspector scenes={project.script.scenes} />

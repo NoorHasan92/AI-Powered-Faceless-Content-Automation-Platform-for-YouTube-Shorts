@@ -5,10 +5,11 @@
 import { prisma } from "@/lib/prisma";
 import type { ServiceResult } from "@/lib/types";
 import { generateStructuredContent } from "./ai/gemini";
-import { buildCreativeBriefPrompt, buildScriptPrompt } from "./ai/prompts";
+import { buildCreativeBriefPrompt, buildScriptPrompt, getDurationMetrics } from "./ai/prompts";
 import { scriptResponseSchema, creativeBriefSchema } from "@/validations/script.schema";
 import { normalizeSceneVisualRouting } from "./script/visual-routing-normalizer";
 import { enforcePromptQuality } from "./script/prompt-quality-enforcer";
+import { executeDeepResearch, type ResearchDossier } from "./research.service";
 import type { Script } from "@prisma/client";
 
 /**
@@ -64,14 +65,38 @@ export async function generateScript(
       
     const recentMemoryString = recentMemory.length > 0 ? JSON.stringify(recentMemory, null, 2) : "";
 
-    // 4. STAGE 1: Generate Creative Brief
+    // 4. STAGE 0: Deep Research Engine (Triggered for long-form video or if subtopics/topic guidance present)
+    const metrics = getDurationMetrics(targetDuration);
+    let researchDossier: ResearchDossier | null = null;
+    const shouldResearch = project.videoFormat === "LONG_FORM" || metrics.isLongForm || (project.subtopics && project.subtopics.length > 0);
+
+    if (shouldResearch) {
+      console.log(`[ScriptService] Initiating Deep Research Engine for project "${project.title}"...`);
+      try {
+        researchDossier = await executeDeepResearch({
+          topic: specificTopic || project.specificTopic || niche,
+          niche,
+          tone,
+          targetDuration,
+          subtopics: project.subtopics || [],
+          creatorInstructions,
+        });
+        console.log(`[ScriptService] Deep Research completed with ${researchDossier.factualDossier?.length || 0} factual discoveries and ${researchDossier.chapters?.length || 0} chapters.`);
+      } catch (err) {
+        console.warn("[ScriptService] Deep research encountered an error, falling back to direct brief generation:", err);
+      }
+    }
+
+    // 5. STAGE 1: Generate Creative Brief
     const briefPrompt = buildCreativeBriefPrompt(
       niche,
       tone,
       targetDuration,
       specificTopic,
       creatorInstructions,
-      recentMemoryString
+      recentMemoryString,
+      researchDossier,
+      project.subtopics || []
     );
     const rawBrief = await generateStructuredContent(briefPrompt);
     const briefParseResult = creativeBriefSchema.safeParse(rawBrief);
@@ -84,10 +109,12 @@ export async function generateScript(
     }
     const creativeBrief = briefParseResult.data;
 
-    // 5. STAGE 2: Generate Script from locked brief
+    // 6. STAGE 2: Generate Script from locked brief
     const scriptPrompt = buildScriptPrompt(
       creativeBrief,
-      targetDuration
+      targetDuration,
+      researchDossier,
+      project.aspectRatio || (project.videoFormat === "LONG_FORM" ? "16:9" : "9:16")
     );
     
     // TEMPORARY LOGGING FOR DEBUGGING ROUTING RULES
@@ -97,7 +124,7 @@ export async function generateScript(
 
     const rawData = await generateStructuredContent(scriptPrompt);
 
-    // 4. Validate with Zod — replaces the old manual validateAIResponse()
+    // 7. Validate with Zod
     const parseResult = scriptResponseSchema.safeParse(rawData);
 
     if (!parseResult.success) {
@@ -107,7 +134,7 @@ export async function generateScript(
       throw new Error(`AI response validation failed: ${errors}`);
     }
 
-    // 4b. Enforce prompt quality — rewrite generic/low-quality AI prompts
+    // 7b. Enforce prompt quality — rewrite generic/low-quality AI prompts
     const enforcedData = enforcePromptQuality(parseResult.data, {
       projectId: project.id,
       niche: project.niche,
@@ -120,6 +147,22 @@ export async function generateScript(
       projectNiche: project.niche
     });
 
+    // 7c. Sanitize scene durations against actual speech rate (~2.3 words/sec)
+    // Prevents hallucinated durations (e.g. 30s for a 14-word scene) from corrupting estimates
+    let totalRealisticDuration = 0;
+    for (const scene of aiData.scenes) {
+      const words = scene.narrationText.trim().split(/\s+/).filter(Boolean).length;
+      const speechDuration = parseFloat((words / 2.3).toFixed(2));
+      if (scene.duration > speechDuration * 1.8 && scene.duration > 7.0) {
+        console.warn(
+          `[ScriptService] Clamping bloated duration (${scene.duration}s for ${words} words) to ${Math.max(speechDuration, 4.0)}s`
+        );
+        scene.duration = Math.max(speechDuration, 4.0);
+      }
+      totalRealisticDuration += scene.duration;
+    }
+    aiData.estimatedDuration = parseFloat(totalRealisticDuration.toFixed(2));
+
     // TEMPORARY LOGGING FOR DEBUGGING ROUTING RULES
     console.log("=== NORMALIZED SCENES START ===");
     aiData.scenes.forEach((scene, index) => {
@@ -127,7 +170,7 @@ export async function generateScript(
     });
     console.log("=== NORMALIZED SCENES END ===");
 
-    // 6. Persist to database (including the generated brief)
+    // 8. Persist to database (including the generated brief, research dossier, and chapters)
     const script = await prisma.script.create({
       data: {
         projectId,
@@ -138,6 +181,8 @@ export async function generateScript(
         metaDescription: aiData.metaDescription,
         estimatedDuration: aiData.estimatedDuration,
         creativeBrief: creativeBrief as any,
+        researchDossier: researchDossier ? (researchDossier as any) : undefined,
+        chapters: (aiData as any).chapters || (researchDossier as any)?.chapters || undefined,
         scenes: {
           create: aiData.scenes.map((scene, index) => ({
             sceneIndex: index,
@@ -155,8 +200,13 @@ export async function generateScript(
             generatedAssetPrompt: scene.generatedAssetPrompt,
             infographicPayload: scene.infographicPayload,
             endingIntent: scene.endingIntent as any,
+            chapterIndex: (scene as any).chapterIndex ?? null,
+            chapterTitle: (scene as any).chapterTitle ?? null,
           })),
         },
+      },
+      include: {
+        scenes: true,
       },
     });
 

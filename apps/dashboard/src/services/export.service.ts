@@ -66,6 +66,10 @@ export async function triggerExport(
       throw new Error("No script or scenes found for export.");
     }
 
+    const isLandscape = project.aspectRatio === "16:9" || project.videoFormat === "LONG_FORM";
+    const aspectRatio: "16:9" | "9:16" = isLandscape ? "16:9" : "9:16";
+    const resolution = isLandscape ? "1920x1080" : "1080x1920";
+
     const scenes = project.script.scenes;
 
     // 3. Validate that all scenes have required data
@@ -108,6 +112,7 @@ export async function triggerExport(
         })),
         audioDuration: voiceover.duration || scene.duration || 5,
         outputPath: sceneOutputPath,
+        aspectRatio,
       });
 
       scenePaths.push(sceneOutputPath);
@@ -123,16 +128,25 @@ export async function triggerExport(
       0
     );
 
-    // 8. Upload final video to Cloudinary
-    const uploaded = await uploadVideoToCloudinary(finalOutputPath, projectId);
+    // 8. Upload final video to Cloudinary (with fallback to local URL if size exceeds 100MB free limit)
+    let outputUrl = `/pipeline/${projectId}/exports/final.mp4`;
+    try {
+      const uploaded = await uploadVideoToCloudinary(finalOutputPath, projectId);
+      if (uploaded?.secure_url) {
+        outputUrl = uploaded.secure_url;
+      }
+    } catch (uploadErr) {
+      console.warn(`[ExportService] Cloudinary video upload encountered an issue (e.g. file size limit), using local export URL:`, uploadErr);
+    }
 
-    // 9. Update ExportJob with Cloudinary URL
+    // 9. Update ExportJob
     const completedJob = await prisma.exportJob.update({
       where: { id: exportJob.id },
       data: {
         status: "COMPLETED",
-        outputUrl: uploaded.secure_url,
+        outputUrl,
         localPath: finalOutputPath,
+        resolution,
         duration: parseFloat(totalDuration.toFixed(2)),
         completedAt: new Date(),
       },

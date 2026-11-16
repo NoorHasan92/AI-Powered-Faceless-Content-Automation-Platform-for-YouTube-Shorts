@@ -92,6 +92,9 @@ model Project {
   niche       String        // e.g., "science", "finance", "animals"
   tone        String        @default("educational")
   targetDuration String     @default("30-50 Seconds")
+  videoFormat String        @default("SHORTS") // "SHORTS" or "LONG_FORM"
+  aspectRatio String        @default("9:16")   // "9:16" or "16:9"
+  subtopics   String[]      @default([])       // User requested subtopics / deep dive angles
   voice       String        @default("en-US-AvaMultilingualNeural")
   status      ProjectStatus @default(DRAFT)
   specificTopic       String?
@@ -119,6 +122,8 @@ model Script {
   hashtags          String[]
   estimatedDuration Float?               // Total estimated seconds for the full script
   creativeBrief     Json?                // Generated during Stage 1
+  researchDossier   Json?                // Deep research: YouTube trends, competitor analysis, factual dossier
+  chapters          Json?                // Multi-act chapter breakdown
   factChecked       Boolean  @default(false)
   factCheckNotes    String?  @db.Text
   createdAt         DateTime @default(now())
@@ -131,6 +136,8 @@ model Scene {
   id              String   @id @default(uuid())
   scriptId        String
   sceneIndex      Int      // Order of appearance
+  chapterIndex    Int?     // Act / Chapter index for long-form video
+  chapterTitle    String?  // Act / Chapter title
   narrationText   String   @db.Text
   visualPrompt    String   @db.Text // AI generation prompt text
   onScreenCaption String

@@ -235,25 +235,18 @@ export function normalizeSceneVisualRouting(
 
     const infographicCheck = isStrongInfographicCandidate(scene, blob);
 
-    // Determine initial source
+    // Strict Zero-Infographic Policy:
+    // Captions provide on-screen typography. Sudden text-only cards break visual continuity.
+    // Every scene must be cinematic real B-roll (STOCK_VIDEO) or high-concept AI art (AI_IMAGE).
     let initialSource = scene.visualSource;
-
-    // Rule 1: Strong infographic candidate with genuine structured data → INFOGRAPHIC
-    if (infographicCheck.isStrong && !isAbstract) {
-      initialSource = "INFOGRAPHIC";
-    }
-    // Rule 2: Abstract content should ALWAYS be AI_IMAGE (override even planner's INFOGRAPHIC)
-    else if (isAbstract && !isLiteral) {
-      initialSource = "AI_IMAGE";
-    }
-    // Rule 3: If planner said INFOGRAPHIC but it's not a strong candidate → redirect to AI_IMAGE
-    else if (initialSource === "INFOGRAPHIC" && !infographicCheck.isStrong) {
-      console.log(`[VisualNormalizer] Scene ${index + 1}: INFOGRAPHIC → AI_IMAGE (not structured data)`);
+    if (initialSource === "INFOGRAPHIC" || (initialSource as any) === "TEXT_CARD") {
+      initialSource = isAbstract ? "AI_IMAGE" : "STOCK_VIDEO";
+    } else if (isAbstract && !isLiteral) {
       initialSource = "AI_IMAGE";
     }
 
-    // Rule 4: Emotional payoff scenes deserve AI_IMAGE
-    if (scene.endingIntent === "EMOTIONAL_PAYOFF" && !infographicCheck.isStrong) {
+    // Emotional payoff scenes deserve AI_IMAGE
+    if (scene.endingIntent === "EMOTIONAL_PAYOFF") {
       initialSource = "AI_IMAGE";
     }
 
@@ -292,27 +285,20 @@ export function normalizeSceneVisualRouting(
     let finalSource = initialSource;
     let downgradeReason: string | undefined = undefined;
 
-    // D. Downgrade rejected AI scenes
+    // D. Downgrade rejected AI scenes strictly to STOCK_VIDEO
     if (initialSource === "AI_IMAGE" && !allowedAiScenes.has(index)) {
       downgradeReason = "AI_QUOTA";
-
-      // Fallback to STOCK_VIDEO, do not fallback to INFOGRAPHIC unless it's strongly structured data.
-      if (infographicCheck.isStrong) {
-          finalSource = "INFOGRAPHIC";
-      } else {
-          finalSource = "STOCK_VIDEO";
-      }
-
-      if (finalSource === "STOCK_VIDEO") {
-        // Generate contextual asset searches based on scene content
-        out.assetSearches = generateContextualSearches(blob, scene);
-      }
-
-      console.log(`[VisualNormalizer] Scene ${index + 1}: AI_IMAGE → ${finalSource} (${downgradeReason})`);
+      finalSource = "STOCK_VIDEO";
+      out.assetSearches = generateContextualSearches(blob, scene);
+      console.log(`[VisualNormalizer] Scene ${index + 1}: AI_IMAGE → STOCK_VIDEO (${downgradeReason})`);
     }
 
-    if (finalSource === "INFOGRAPHIC" && infographicCheck.isStrong) {
-      console.log(`[VisualNormalizer] Scene ${index + 1}: INFOGRAPHIC kept: ${infographicCheck.reason}`);
+    // Safety fallback: absolutely guarantee zero INFOGRAPHIC sources
+    if ((finalSource as string) === "INFOGRAPHIC") {
+      finalSource = "STOCK_VIDEO";
+      if (!out.assetSearches || out.assetSearches.length === 0) {
+        out.assetSearches = generateContextualSearches(blob, scene);
+      }
     }
 
     out.visualSource = finalSource as any;
@@ -320,32 +306,7 @@ export function normalizeSceneVisualRouting(
     return { out, index, score: scored.score, downgradeReason };
   });
 
-  // Step E: Enforce INFOGRAPHIC quota (max 1 for science, max 2 for other niches)
-  const maxInfographics = isScienceNiche ? 1 : 2;
-  let infographicScenes = normalizedScenes.filter(s => s.out.visualSource === "INFOGRAPHIC");
-  if (infographicScenes.length > maxInfographics) {
-    const allowedInfographics = new Set(infographicScenes.slice(0, maxInfographics).map(s => s.index));
-
-    for (const sc of infographicScenes) {
-        if (!allowedInfographics.has(sc.index)) {
-            console.log(`[VisualNormalizer] Scene ${sc.index + 1}: INFOGRAPHIC → AI_IMAGE (Quota exceeded — max ${maxInfographics})`);
-            sc.out.visualSource = "AI_IMAGE";
-            if (!sc.downgradeReason) {
-                sc.out.routingDowngradeReason = "MOTION_SUBSTITUTION";
-            }
-        }
-    }
-  }
-
   const finalScenes = normalizedScenes.map(({ out }) => {
-    // Fix up infographic payload if needed
-    if (out.visualSource === "INFOGRAPHIC" && !out.infographicPayload) {
-      out.infographicPayload = {
-        title: out.onScreenCaption || "Process Explanation",
-        data: "Conceptual pathway"
-      };
-    }
-
     // Ensure AI prompt exists and is cinematic quality
     if (out.visualSource === "AI_IMAGE") {
       out.generatedAssetPrompt = enrichAiPrompt(out);
@@ -354,9 +315,7 @@ export function normalizeSceneVisualRouting(
     // Assign Motion Treatments
     if (out.visualSource === "STOCK_VIDEO") {
       out.motionTreatment = "LOOP_VIDEO";
-    } else if (out.visualSource === "INFOGRAPHIC") {
-      out.motionTreatment = "INFOGRAPHIC_MOTION";
-    } else if (out.visualSource === "STOCK_IMAGE" || out.visualSource === "AI_IMAGE") {
+    } else {
       out.motionTreatment = "KEN_BURNS";
     }
 

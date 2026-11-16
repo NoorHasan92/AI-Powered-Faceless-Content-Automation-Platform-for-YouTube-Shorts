@@ -28,10 +28,7 @@ export async function generateSubtitles(projectId: string): Promise<ServiceResul
       where: { sceneId: { in: sceneIds } },
     });
 
-    // 3. Simulate processing delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // 4. Generate naive chunks
+    // 3. Generate naive chunks
     const chunks: any[] = [];
     
     script.scenes.forEach(scene => {
@@ -65,12 +62,15 @@ export async function generateSubtitles(projectId: string): Promise<ServiceResul
       });
     });
 
-    // 5. Create SubtitleChunk records
-    const createdChunks = await prisma.$transaction(
-      chunks.map(chunkData => 
-        prisma.subtitleChunk.create({ data: chunkData })
-      )
-    );
+    // 5. Batch create SubtitleChunk records in a single high-performance query
+    await prisma.subtitleChunk.createMany({
+      data: chunks,
+    });
+
+    const createdChunks = await prisma.subtitleChunk.findMany({
+      where: { sceneId: { in: sceneIds } },
+      orderBy: { startTime: "asc" },
+    });
 
     // 6. Update pipeline state to ready for export
     await prisma.project.update({

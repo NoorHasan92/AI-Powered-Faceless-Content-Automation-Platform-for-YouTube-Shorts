@@ -26,7 +26,7 @@ import { generateAssFile } from "./ass-utils";
 
 /**
  * Compose a single scene: background visual + voiceover audio + subtitle text.
- * Output is a 1080x1920 (9:16 portrait) MP4 clip.
+ * Output is a 1080x1920 (9:16 portrait) or 1920x1080 (16:9 landscape) MP4 clip.
  */
 export async function composeScene(options: {
   assetPaths: string[];     // Array of paths to background images or a single video
@@ -35,18 +35,24 @@ export async function composeScene(options: {
   subtitles: { text: string; startTime: number; endTime: number }[]; // Subtitle chunks
   audioDuration: number;    // Duration in seconds
   outputPath: string;       // Where to save the scene clip
+  aspectRatio?: "16:9" | "9:16"; // "16:9" for long-form landscape or "9:16" for vertical Shorts
 }): Promise<void> {
-  const { assetPaths, assetType, audioPath, subtitles, audioDuration, outputPath } = options;
+  const { assetPaths, assetType, audioPath, subtitles, audioDuration, outputPath, aspectRatio = "9:16" } = options;
 
   if (!assetPaths || assetPaths.length === 0) {
     throw new Error("No asset paths provided to composeScene.");
   }
 
+  const isLandscape = aspectRatio === "16:9";
+  const W = isLandscape ? 1920 : 1080;
+  const H = isLandscape ? 1080 : 1920;
+  const resStr = `${W}x${H}`;
+
   // Generate ASS file for styled subtitles
   const assFilePath = outputPath.replace(".mp4", ".ass");
   let assFilter = "";
   if (subtitles && subtitles.length > 0) {
-    await generateAssFile(subtitles, assFilePath);
+    await generateAssFile(subtitles, assFilePath, aspectRatio);
     const relativeAssPath = path.relative(process.cwd(), assFilePath).replace(/\\/g, "/");
     const escapedAssPath = relativeAssPath.replace(/'/g, "\\'");
     assFilter = `ass='${escapedAssPath}'`;
@@ -65,7 +71,7 @@ export async function composeScene(options: {
       if (assetType === "STOCK_VIDEO") {
         command.input(assetPath).inputOptions(["-stream_loop", "-1"]).input(audioPath);
         command.complexFilter([
-          `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30[bg]`,
+          `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=30[bg]`,
           textFilters,
           `[1:a]afade=t=in:st=0:d=0.1,afade=t=out:st=${Math.max(0, audioDuration - 0.2)}:d=0.2[outa]`
         ]);
@@ -73,15 +79,15 @@ export async function composeScene(options: {
         command.input(assetPath).input(audioPath);
         const frames = Math.ceil(audioDuration * 30) + 30;
         command.complexFilter([
-          `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,zoompan=z='min(zoom+0.001,1.15)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=1080x1920:fps=30[bg]`,
+          `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},zoompan=z='min(zoom+0.001,1.15)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${resStr}:fps=30[bg]`,
           textFilters,
           `[1:a]afade=t=in:st=0:d=0.1,afade=t=out:st=${Math.max(0, audioDuration - 0.2)}:d=0.2[outa]`
         ]);
       } else {
-        // STOCK_IMAGE and INFOGRAPHIC
+        // STOCK_IMAGE and other fallbacks
         command.input(assetPath).inputOptions(["-loop", "1"]).input(audioPath);
         command.complexFilter([
-          `[0:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,setsar=1,fps=30[bg]`,
+          `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=30[bg]`,
           textFilters,
           `[1:a]afade=t=in:st=0:d=0.1,afade=t=out:st=${Math.max(0, audioDuration - 0.2)}:d=0.2[outa]`
         ]);
@@ -91,7 +97,9 @@ export async function composeScene(options: {
         "-map", "[outv]", "-map", "[outa]",
         "-t", String(audioDuration),
         "-c:v", "libx264", "-preset", "fast",
-        "-b:v", "8M", "-maxrate", "8M", "-bufsize", "16M",
+        "-b:v", isLandscape ? "4M" : "6M",
+        "-maxrate", isLandscape ? "4.5M" : "6M",
+        "-bufsize", isLandscape ? "9M" : "12M",
         "-c:a", "aac", "-b:a", "192k",
         "-pix_fmt", "yuv420p", "-shortest",
       ]);
@@ -144,7 +152,7 @@ export async function composeScene(options: {
             break;
         }
 
-        filterSegments.push(`[${i}:v]scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,${kb}:s=1080x1920:fps=30[v${i}]`);
+        filterSegments.push(`[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},${kb}:s=${resStr}:fps=30[v${i}]`);
         
         if (i > 0) {
           offsets.push(currentOffset);
@@ -174,7 +182,9 @@ export async function composeScene(options: {
         "-map", "[outv]", "-map", "[outa]",
         "-t", String(audioDuration),
         "-c:v", "libx264", "-preset", "fast",
-        "-b:v", "8M", "-maxrate", "8M", "-bufsize", "16M",
+        "-b:v", isLandscape ? "4M" : "6M",
+        "-maxrate", isLandscape ? "4.5M" : "6M",
+        "-bufsize", isLandscape ? "9M" : "12M",
         "-c:a", "aac", "-b:a", "192k",
         "-pix_fmt", "yuv420p", "-shortest",
       ]);

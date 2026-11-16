@@ -8,6 +8,7 @@ import type { Asset, Scene } from "@prisma/client";
 import { createClient, type Videos, type Photos, type Video, type Photo, type ErrorResponse } from "pexels";
 import fs from "fs";
 import path from "path";
+import http from "http";
 import https from "https";
 import { getAssetsDir } from "@/lib/audio-utils";
 import { uploadAssetToCloudinary } from "@/lib/cloudinary-upload";
@@ -19,24 +20,39 @@ const pexelsClient = createClient(process.env.PEXELS_API_KEY || "");
 
 /**
  * Download a file from a URL to a local path.
+ * Handles both HTTP/HTTPS, redirects (301, 302, 307, 308), and cleans up on error.
  */
 function downloadFile(url: string, destPath: string): Promise<void> {
   return new Promise((resolve, reject) => {
+    const isHttp = url.startsWith("http://");
+    const client = isHttp ? http : https;
     const file = fs.createWriteStream(destPath);
-    https.get(url, (response) => {
+
+    client.get(url, (response) => {
       // Follow redirects
-      if (response.statusCode === 301 || response.statusCode === 302) {
+      if (response.statusCode && [301, 302, 307, 308].includes(response.statusCode)) {
         const redirectUrl = response.headers.location;
         if (redirectUrl) {
           file.close();
-          fs.unlinkSync(destPath);
+          try { fs.unlinkSync(destPath); } catch {}
           return downloadFile(redirectUrl, destPath).then(resolve).catch(reject);
         }
       }
+
+      if (response.statusCode && (response.statusCode < 200 || response.statusCode >= 300)) {
+        file.close();
+        try { fs.unlinkSync(destPath); } catch {}
+        return reject(new Error(`Download failed with HTTP ${response.statusCode} for ${url}`));
+      }
+
       response.pipe(file);
-      file.on("finish", () => { file.close(); resolve(); });
+      file.on("finish", () => {
+        file.close();
+        resolve();
+      });
     }).on("error", (err) => {
-      fs.unlinkSync(destPath);
+      file.close();
+      try { fs.unlinkSync(destPath); } catch {}
       reject(err);
     });
   });
@@ -46,13 +62,18 @@ function isPexelsError(response: Videos | Photos | ErrorResponse): response is E
   return "error" in response;
 }
 
-async function findPexelsAsset(searches: { query: string, type: "video" | "image" }[]): Promise<{
+async function findPexelsAsset(
+  searches: { query: string, type: "video" | "image" }[],
+  aspectRatio: "16:9" | "9:16" = "9:16"
+): Promise<{
   downloadUrl: string;
   sourceUrl: string;
   searchQuery: string;
   type: "STOCK_VIDEO" | "STOCK_IMAGE";
   extension: string;
 } | null> {
+  const isLandscape = aspectRatio === "16:9";
+  const pexelsOrientation = isLandscape ? "landscape" : "portrait";
 
   for (const search of searches) {
     const { query, type } = search;
@@ -62,15 +83,23 @@ async function findPexelsAsset(searches: { query: string, type: "video" | "image
         const videoResult = await pexelsClient.videos.search({
           query,
           per_page: 15,
-          orientation: "portrait",
+          orientation: pexelsOrientation,
         });
 
         if (!isPexelsError(videoResult) && videoResult.videos.length > 0) {
           const randomIndex = Math.floor(Math.random() * videoResult.videos.length);
           const video = videoResult.videos[randomIndex];
 
-          const videoFile = video.video_files
-            .filter(f => f.width && f.width <= 1920)
+          // Filter files by orientation and resolution bounds
+          const orientedFiles = isLandscape
+            ? video.video_files.filter(f => f.width && f.height && f.width >= f.height && f.width <= 1920)
+            : video.video_files.filter(f => f.width && f.height && f.height >= f.width && f.width <= 1080);
+
+          const candidateFiles = orientedFiles.length > 0
+            ? orientedFiles
+            : video.video_files.filter(f => f.width && f.width <= (isLandscape ? 1920 : 1080));
+
+          const videoFile = candidateFiles
             .sort((a, b) => (b.width || 0) - (a.width || 0))[0] || video.video_files[0];
 
           if (videoFile?.link) {
@@ -91,7 +120,7 @@ async function findPexelsAsset(searches: { query: string, type: "video" | "image
         const photoResult = await pexelsClient.photos.search({
           query,
           per_page: 15,
-          orientation: "portrait",
+          orientation: pexelsOrientation,
         });
 
         if (!isPexelsError(photoResult) && photoResult.photos.length > 0) {
@@ -142,7 +171,8 @@ const CAMERA_MODIFIERS = [
  * No circuit breaker. No retry loop. No payment handling.
  */
 async function attemptAIImageGeneration(
-  scene: Scene
+  scene: Scene,
+  aspectRatio: "16:9" | "9:16" = "9:16"
 ): Promise<{
   finalAssetData: any[] | null;
   newAssetType: string;
@@ -152,6 +182,9 @@ async function attemptAIImageGeneration(
     return { finalAssetData: null, newAssetType: scene.visualSource, downgradeReason: null };
   }
 
+  const isLandscape = aspectRatio === "16:9";
+  const orientation = isLandscape ? "landscape" : "portrait";
+
   try {
     const duration = scene.duration || 5;
     let imageCount = 1;
@@ -160,7 +193,7 @@ async function attemptAIImageGeneration(
     else if (duration > 5) imageCount = 2; // Fixed to > 5 instead of >= 5 since <= 5 is 1 image
 
     const basePrompt = scene.generatedAssetPrompt || scene.visualPrompt;
-    console.log(`[AssetService] Generating ${imageCount} AI Image(s) for scene ${scene.sceneIndex}...`);
+    console.log(`[AssetService] Generating ${imageCount} AI Image(s) (${orientation}) for scene ${scene.sceneIndex}...`);
 
     const results = [];
     
@@ -182,7 +215,7 @@ async function attemptAIImageGeneration(
         prompt = `${modifier} — ${cleanBase}`;
       }
       if (imageCount > 1) console.log(`[AssetService] Generating variation ${i + 1}/${imageCount}...`);
-      const result = await generateImage(prompt, "portrait");
+      const result = await generateImage(prompt, orientation);
       results.push({
         buffer: result.buffer,
         sourceUrl: "AI_GENERATED",
@@ -255,11 +288,13 @@ export async function generateAssets(projectId: string): Promise<ServiceResult<A
     const assetsDir = getAssetsDir(projectId);
     const assets: Asset[] = [];
     
+    const projectAspectRatio = (script.project.aspectRatio as "16:9" | "9:16") || 
+      (script.project.videoFormat === "LONG_FORM" ? "16:9" : "9:16");
     const preferredMotionRatio = script.project.preferredMotionRatio || 0.7;
 
     for (const scene of script.scenes.sort((a, b) => a.sceneIndex - b.sceneIndex)) {
       // 1. Try AI Image if requested
-      const aiResult = await attemptAIImageGeneration(scene);
+      const aiResult = await attemptAIImageGeneration(scene, projectAspectRatio);
       
       let finalAssetsData: any[] = aiResult.finalAssetData || [];
       let assetTypeToTry = aiResult.newAssetType;
@@ -287,7 +322,7 @@ export async function generateAssets(projectId: string): Promise<ServiceResult<A
           }
         }
 
-        let pexelsAsset = await findPexelsAsset(searches);
+        let pexelsAsset = await findPexelsAsset(searches, projectAspectRatio);
         
         // If stock video was requested but only found image, mark NO_STOCK_VIDEO_FOUND
         if (assetTypeToTry === "STOCK_VIDEO" && (!pexelsAsset || pexelsAsset.type === "STOCK_IMAGE")) {
@@ -305,37 +340,50 @@ export async function generateAssets(projectId: string): Promise<ServiceResult<A
         }
       }
 
-      if (finalAssetsData.length === 0 && assetTypeToTry === "INFOGRAPHIC") {
-         // V1 fallback: Infographics require a real visual asset for the FFmpeg pipeline.
-         // Generate a placeholder image until a real HTML5/Remotion rendering engine is implemented.
-         const title = (scene.infographicPayload as any)?.title || scene.onScreenCaption || "Infographic";
-         const encodedTitle = encodeURIComponent(title);
-         finalAssetsData = [{
-           downloadUrl: `https://placehold.co/1080x1920/1e293b/ffffff/png?text=${encodedTitle}`,
-           sourceUrl: "INFOGRAPHIC_GENERATED",
-           searchQuery: "infographic",
-           type: "INFOGRAPHIC",
-           extension: "png"
-         }];
+      // 3. Fallback to ambient/atmospheric stock video loop (avoids ugly text placeholders)
+      if (finalAssetsData.length === 0) {
+        const ambientSearches = [
+          { query: `${script.project.niche} atmosphere`, type: "video" as const },
+          { query: "dark cinematic background", type: "video" as const },
+          { query: "abstract ambient motion", type: "video" as const },
+          { query: "cinematic landscape", type: "video" as const },
+        ];
+        const ambientAsset = await findPexelsAsset(ambientSearches, projectAspectRatio);
+        if (ambientAsset) {
+          finalAssetsData = [ambientAsset];
+        }
+      }
+
+      // 4. Fallback to generating a high-quality AI visual if stock couldn't find anything
+      if (finalAssetsData.length === 0) {
+        try {
+          console.log(`[AssetService] Attempting emergency AI image generation for scene ${scene.sceneIndex}...`);
+          const emergencyPrompt = scene.generatedAssetPrompt || scene.visualPrompt ||
+            `Cinematic documentary scene about ${scene.onScreenCaption || script.project.niche}, dramatic lighting, 8k resolution, atmospheric`;
+          const orientation = projectAspectRatio === "16:9" ? "landscape" : "portrait";
+          const emergencyImg = await generateImage(emergencyPrompt, orientation);
+          finalAssetsData = [{
+            buffer: emergencyImg.buffer,
+            sourceUrl: "AI_GENERATED_FALLBACK",
+            searchQuery: emergencyPrompt,
+            type: "AI_IMAGE",
+            extension: emergencyImg.extension,
+          }];
+          await prisma.scene.update({
+            where: { id: scene.id },
+            data: { visualSource: "AI_IMAGE", motionTreatment: "KEN_BURNS" },
+          });
+        } catch (imgErr) {
+          console.warn(`[AssetService] Emergency AI image generation failed:`, imgErr);
+        }
       }
 
       if (finalAssetsData.length === 0) {
-        console.warn(`No visual asset found or generated for scene ${scene.sceneIndex}. Generating bulletproof placeholder to prevent export crash...`);
-        const fallbackText = encodeURIComponent(`Missing Asset\nScene ${scene.sceneIndex + 1}\nNo Stock Found`);
-        finalAssetsData = [{
-           downloadUrl: `https://placehold.co/1080x1920/ff4444/ffffff/png?text=${fallbackText}`,
-           sourceUrl: "PLACEHOLDER_FAILED",
-           searchQuery: "failed",
-           type: "STOCK_IMAGE",
-           extension: "png"
-        }];
-        
-        // Also update the downgrade reason so it's transparent in the UI
-        if (!downgradeReason) {
-            await prisma.scene.update({
-              where: { id: scene.id },
-              data: { routingDowngradeReason: "NO_STOCK_VIDEO_FOUND" }
-            });
+        console.warn(`No visual asset found for scene ${scene.sceneIndex}. Using generic ambient asset.`);
+        // Last resort: search generic motion
+        const genericAsset = await findPexelsAsset([{ query: "abstract background", type: "video" }], projectAspectRatio);
+        if (genericAsset) {
+          finalAssetsData = [genericAsset];
         }
       }
 
@@ -350,19 +398,27 @@ export async function generateAssets(projectId: string): Promise<ServiceResult<A
           await downloadFile(finalAssetData.downloadUrl, localPath);
         }
 
-        // Upload to Cloudinary and use its URL as sourceUrl
-        const upload = await uploadAssetToCloudinary(
-          localPath,
-          projectId,
-          scene.sceneIndex,
-          finalAssetData.type
-        );
+        // Upload to Cloudinary and use its URL as sourceUrl (with fallback to local URL if upload fails)
+        let sourceUrl = `/pipeline/${projectId}/assets/${filename}`;
+        try {
+          const upload = await uploadAssetToCloudinary(
+            localPath,
+            projectId,
+            scene.sceneIndex,
+            finalAssetData.type
+          );
+          if (upload?.secure_url) {
+            sourceUrl = upload.secure_url;
+          }
+        } catch (uploadErr) {
+          console.warn(`[AssetService] Cloudinary asset upload failed for scene ${scene.sceneIndex}, using local asset:`, uploadErr);
+        }
 
         const asset = await prisma.asset.create({
           data: {
             sceneId: scene.id,
             type: finalAssetData.type,
-            sourceUrl: upload.secure_url,
+            sourceUrl,
             localPath: localPath,
             searchQuery: finalAssetData.searchQuery,
             status: "COMPLETED",
@@ -409,18 +465,26 @@ export async function generateAssets(projectId: string): Promise<ServiceResult<A
                     const localPath = path.join(assetsDir, filename);
                     await downloadFile(pexelsAsset.downloadUrl, localPath);
 
-                    // Upload rerouted asset to Cloudinary
-                    const rerouteUpload = await uploadAssetToCloudinary(
-                        localPath,
-                        projectId,
-                        s.sceneIndex,
-                        "STOCK_VIDEO"
-                    );
+                    // Upload rerouted asset to Cloudinary (with fallback to local URL if upload fails)
+                    let rerouteUrl = `/pipeline/${projectId}/assets/${filename}`;
+                    try {
+                      const rerouteUpload = await uploadAssetToCloudinary(
+                          localPath,
+                          projectId,
+                          s.sceneIndex,
+                          "STOCK_VIDEO"
+                      );
+                      if (rerouteUpload?.secure_url) {
+                        rerouteUrl = rerouteUpload.secure_url;
+                      }
+                    } catch (uploadErr) {
+                      console.warn(`[AssetService] Cloudinary reroute upload failed for scene ${s.sceneIndex}, using local asset:`, uploadErr);
+                    }
                     
                     // Update asset
                     await prisma.asset.update({
                         where: { id: s.assets[0].id },
-                        data: { type: "STOCK_VIDEO", sourceUrl: rerouteUpload.secure_url, localPath, searchQuery: pexelsAsset.searchQuery }
+                        data: { type: "STOCK_VIDEO", sourceUrl: rerouteUrl, localPath, searchQuery: pexelsAsset.searchQuery }
                     });
                    
                    // Update scene

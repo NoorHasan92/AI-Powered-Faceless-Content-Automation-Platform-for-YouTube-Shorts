@@ -3,6 +3,7 @@
 // All generated artifacts (audio, assets, exports) route through here.
 
 import { cloudinary } from "@/lib/cloudinary";
+import type { UploadApiResponse } from "cloudinary";
 
 // ---------------------------------------------------------------------------
 // Exports (existing)
@@ -11,13 +12,24 @@ import { cloudinary } from "@/lib/cloudinary";
 export async function uploadVideoToCloudinary(
     filePath: string,
     projectId: string
-) {
-    return cloudinary.uploader.upload(filePath, {
-        resource_type: "video",
-        folder: `tars/projects/${projectId}/exports`,
-        use_filename: true,
-        unique_filename: true,
-        overwrite: false,
+): Promise<UploadApiResponse> {
+    return new Promise((resolve, reject) => {
+        cloudinary.uploader.upload_large(
+            filePath,
+            {
+                resource_type: "video",
+                folder: `tars/projects/${projectId}/exports`,
+                use_filename: true,
+                unique_filename: true,
+                overwrite: false,
+                chunk_size: 6000000,
+            },
+            (error, result) => {
+                if (error) return reject(error);
+                if (!result) return reject(new Error("Cloudinary upload_large returned no result"));
+                resolve(result);
+            }
+        );
     });
 }
 
@@ -29,7 +41,7 @@ export async function uploadAudioToCloudinary(
     filePath: string,
     projectId: string,
     sceneIndex: number
-) {
+): Promise<UploadApiResponse> {
     return cloudinary.uploader.upload(filePath, {
         resource_type: "video", // Cloudinary treats audio under the "video" resource type
         folder: `tars/projects/${projectId}/audio`,
@@ -49,9 +61,29 @@ export async function uploadAssetToCloudinary(
     projectId: string,
     sceneIndex: number,
     assetType: AssetType
-) {
+): Promise<UploadApiResponse> {
     const resourceType: "video" | "image" =
         assetType === "STOCK_VIDEO" ? "video" : "image";
+
+    if (resourceType === "video") {
+        return new Promise((resolve, reject) => {
+            cloudinary.uploader.upload_large(
+                filePath,
+                {
+                    resource_type: "video",
+                    folder: `tars/projects/${projectId}/assets`,
+                    public_id: `scene-${sceneIndex}`,
+                    overwrite: true,
+                    chunk_size: 6000000,
+                },
+                (error, result) => {
+                    if (error) return reject(error);
+                    if (!result) return reject(new Error("Cloudinary upload_large returned no result"));
+                    resolve(result);
+                }
+            );
+        });
+    }
 
     return cloudinary.uploader.upload(filePath, {
         resource_type: resourceType,

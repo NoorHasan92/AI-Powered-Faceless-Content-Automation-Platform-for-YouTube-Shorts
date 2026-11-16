@@ -22,6 +22,9 @@ export interface CreateProjectInput {
   tone: string;
   targetDuration: string;
   voice: string;
+  videoFormat?: "SHORTS" | "LONG_FORM";
+  aspectRatio?: "9:16" | "16:9";
+  subtopics?: string[];
   specificTopic?: string;
   creatorInstructions?: string;
 }

@@ -1,4 +1,4 @@
-// File Location: src/middleware.ts
+// File Location: src/proxy.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
@@ -7,7 +7,7 @@ import { jwtVerify } from "jose";
 const protectedRoutes = ["/", "/projects", "/settings", "/analytics"];
 const publicRoutes = ["/login", "/forgot-password"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Ignore API auth routes (OAuth) and static files
@@ -32,12 +32,12 @@ export async function middleware(request: NextRequest) {
         const encodedKey = new TextEncoder().encode(secret);
         await jwtVerify(session, encodedKey);
       }
-      
+
       // If logged in and trying to access /login, redirect to dashboard
       if (isPublicRoute) {
         return NextResponse.redirect(new URL("/", request.url));
       }
-    } catch (error) {
+    } catch {
       // If token is invalid/expired, clear it and redirect to login
       const response = NextResponse.redirect(new URL("/login", request.url));
       response.cookies.delete("session");
@@ -47,6 +47,8 @@ export async function middleware(request: NextRequest) {
 
   return NextResponse.next();
 }
+
+export default proxy;
 
 export const config = {
   matcher: [
@@ -60,3 +62,4 @@ export const config = {
     "/((?!_next/static|_next/image|favicon.ico|public/|pipeline/).*)",
   ],
 };
+

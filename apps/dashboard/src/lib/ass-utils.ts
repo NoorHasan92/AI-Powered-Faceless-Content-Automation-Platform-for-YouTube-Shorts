@@ -40,28 +40,34 @@ import { emphasizeText } from "./subtitle-emphasis";
 /**
  * Generates an .ass file for a given set of subtitles.
  * Uses a chunky bold font (Montserrat) with an outline and drop shadow for maximum readability.
- * The WrapStyle: 1 and MarginL/MarginR ensure long text wraps cleanly.
+ * Dynamically adjusts PlayRes, Fontsize, and MarginV according to aspect ratio.
  *
  * @param subtitles Array of subtitle chunks with timings
  * @param outputPath Where to save the .ass file
+ * @param aspectRatio "16:9" for landscape or "9:16" for vertical portrait
  */
-export async function generateAssFile(subtitles: SubtitleChunk[], outputPath: string): Promise<void> {
-  // ASS Header config for 1080x1920 (9:16)
-  // Font styling: 
-  // - Montserrat Bold (-1)
-  // - Size 80
-  // - White Primary, Black Outline (4px), Black Shadow (3px)
-  // - Alignment 2 (Bottom center), with MarginV 350 to sit above YouTube Shorts UI
+export async function generateAssFile(
+  subtitles: SubtitleChunk[],
+  outputPath: string,
+  aspectRatio: "16:9" | "9:16" = "9:16"
+): Promise<void> {
+  const isLandscape = aspectRatio === "16:9";
+  const playResX = isLandscape ? 1920 : 1080;
+  const playResY = isLandscape ? 1080 : 1920;
+  const fontSize = isLandscape ? 58 : 80;
+  const marginV = isLandscape ? 90 : 350;
+  const marginH = isLandscape ? 140 : 80;
+
   const header = `[Script Info]
 ScriptType: v4.00+
-PlayResX: 1080
-PlayResY: 1920
+PlayResX: ${playResX}
+PlayResY: ${playResY}
 WrapStyle: 1
 ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Montserrat,80,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,3,2,80,80,350,1
+Style: Default,Montserrat,${fontSize},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,3,2,${marginH},${marginH},${marginV},1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

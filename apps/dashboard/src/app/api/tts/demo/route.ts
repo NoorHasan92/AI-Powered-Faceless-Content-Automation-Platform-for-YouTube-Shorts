@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MsEdgeTTS, OUTPUT_FORMAT } from "msedge-tts";
-import { PassThrough } from "stream";
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,17 +10,22 @@ export async function GET(req: NextRequest) {
     const tts = new MsEdgeTTS();
     await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_96KBITRATE_MONO_MP3);
     
-    // Create a passthrough stream
-    const readable = new PassThrough();
-    
-    // msedge-tts supports piping to a stream via toStream()
     const ttsStream = tts.toStream(text);
-    ttsStream.audioStream.pipe(readable);
+    const chunks: Buffer[] = [];
+
+    await new Promise<void>((resolve, reject) => {
+      ttsStream.audioStream.on("data", (chunk: Buffer) => chunks.push(chunk));
+      ttsStream.audioStream.on("end", () => resolve());
+      ttsStream.audioStream.on("error", (err) => reject(err));
+    });
+
+    const buffer = Buffer.concat(chunks);
     
-    return new NextResponse(readable as any, {
+    return new NextResponse(buffer, {
       headers: {
         "Content-Type": "audio/mpeg",
-        "Cache-Control": "public, max-age=3600", // cache the demo for an hour
+        "Content-Length": buffer.length.toString(),
+        "Cache-Control": "public, max-age=3600",
       },
     });
   } catch (error) {

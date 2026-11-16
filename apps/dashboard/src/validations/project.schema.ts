@@ -19,6 +19,15 @@ export const createProjectSchema = z.object({
   targetDuration: z
     .string()
     .min(1, "Target duration is required"),
+  videoFormat: z
+    .enum(["SHORTS", "LONG_FORM"])
+    .default("SHORTS"),
+  aspectRatio: z
+    .enum(["9:16", "16:9"])
+    .default("9:16"),
+  subtopics: z
+    .array(z.string())
+    .default([]),
   voice: z
     .string()
     .min(1, "Voice selection is required"),

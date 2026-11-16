@@ -27,6 +27,8 @@ export const creativeBriefSchema = z.object({
 // ---------------------------------------------------------------------------
 
 export const sceneSchema = z.object({
+  chapterIndex: z.number().optional().nullable(),
+  chapterTitle: z.string().optional().nullable(),
   narrationText: z
     .string()
     .min(1, "Narration text is required"),
@@ -122,6 +124,10 @@ export const scriptResponseSchema = z.object({
   estimatedDuration: z
     .number()
     .positive()
+    .optional()
+    .nullable(),
+  chapters: z
+    .array(z.any())
     .optional()
     .nullable(),
   scenes: z

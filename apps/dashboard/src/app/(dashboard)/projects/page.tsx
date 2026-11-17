@@ -2,6 +2,8 @@
 import { getProjects } from "@/services/project.service";
 import ProjectsStudioView from "@/components/project/ProjectsStudioView";
 
+export const dynamic = "force-dynamic";
+
 export default async function ProjectsPage() {
   const projects = await getProjects({ isArchived: false });
 

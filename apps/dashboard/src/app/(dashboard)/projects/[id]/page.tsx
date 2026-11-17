@@ -11,6 +11,8 @@ import { generateSubtitlesAction } from "@/actions/subtitle.actions";
 import { generateAssetsAction } from "@/actions/asset.actions";
 import ProjectStudioWorkspace from "@/components/project/ProjectStudioWorkspace";
 
+export const dynamic = "force-dynamic";
+
 interface ProjectDetailsProps {
   params: Promise<{ id: string }>;
 }

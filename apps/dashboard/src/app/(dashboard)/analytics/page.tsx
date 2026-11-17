@@ -8,6 +8,8 @@ import { Film, TrendingUp, CheckCircle, AlertTriangle, Eye, ThumbsUp, ExternalLi
 import Link from "next/link";
 import StatusBadge from "@/components/ui/StatusBadge";
 
+export const dynamic = "force-dynamic";
+
 export default async function AnalyticsPage() {
   const cookieStore = await cookies();
   const accessToken = cookieStore.get("yt_access_token")?.value;

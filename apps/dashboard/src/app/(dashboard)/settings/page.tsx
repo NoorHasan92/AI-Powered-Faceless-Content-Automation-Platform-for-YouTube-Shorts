@@ -11,6 +11,8 @@ import { disconnectYouTubeAction } from "@/actions/youtube.actions";
 import SubmitButton from "@/components/ui/SubmitButton";
 import VisibilitySelect from "@/components/settings/VisibilitySelect";
 
+export const dynamic = "force-dynamic";
+
 export default async function SettingsPage() {
   const cookieStore = await cookies();
   const ytAccessToken = cookieStore.get("yt_access_token")?.value;

@@ -2,6 +2,8 @@ import { Archive, Video } from "lucide-react";
 import { getProjects } from "@/services/project.service";
 import ProjectCard from "@/components/project/ProjectCard";
 
+export const dynamic = "force-dynamic";
+
 export default async function ArchivedProjectsPage() {
   const projects = await getProjects({ isArchived: true });
 

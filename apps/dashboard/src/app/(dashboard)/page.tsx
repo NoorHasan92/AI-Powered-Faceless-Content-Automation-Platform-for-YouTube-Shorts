@@ -18,6 +18,8 @@ import {
 import { getDashboardStats, getRecentProjects } from "@/services/project.service";
 import ProjectCard from "@/components/project/ProjectCard";
 
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const { activeProjects, totalVideos, pendingUploads } = await getDashboardStats();
   const recentProjects = await getRecentProjects(6);

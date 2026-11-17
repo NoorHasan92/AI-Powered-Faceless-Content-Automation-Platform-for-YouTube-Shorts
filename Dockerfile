@@ -22,7 +22,6 @@ ENV NODE_ENV=production
 ENV IS_RENDER_WORKER=true
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=10000
-ENV NODE_OPTIONS="--max-old-space-size=160 --expose-gc"
 # Build-time dummy variables to allow Next.js route collection without failing (overridden at runtime by Render)
 ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/build_dummy"
 ENV JWT_SECRET="render_build_dummy_jwt_secret_32_chars_long"
@@ -59,6 +58,9 @@ RUN cd apps/dashboard && npm run build
 
 # Create temporary pipeline working directory with proper permissions
 RUN mkdir -p /tmp/tars-data && chmod 777 /tmp/tars-data
+
+# Set runtime Node memory constraints to protect against container OOM on 512MB instances
+ENV NODE_OPTIONS="--max-old-space-size=180 --expose-gc"
 
 EXPOSE 10000
 

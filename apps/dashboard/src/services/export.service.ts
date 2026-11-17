@@ -165,59 +165,73 @@ export async function triggerExport(
     const exportsDir = getExportsDir(projectId);
     const scenePaths: string[] = [];
 
-    // 4. Validate and resolve all scene media (locally or from Cloudinary)
+    // 4. Compose each scene sequentially with streaming memory release
     for (const scene of scenes) {
       if (!scene.voiceover) {
         throw new Error(
           `Scene ${scene.sceneIndex + 1} is missing voiceover audio. Generate voiceovers first.`
         );
       }
-      const audioTarget = path.join(exportsDir, `audio-scene-${scene.sceneIndex}.mp3`);
-      scene.voiceover.localPath = await ensureMediaFile(
-        scene.voiceover.localPath,
-        scene.voiceover.audioUrl,
-        audioTarget
-      );
-
       if (!scene.assets.length) {
         throw new Error(
           `Scene ${scene.sceneIndex + 1} is missing visual assets. Generate assets first.`
         );
       }
 
+      const audioTarget = path.join(exportsDir, `audio-scene-${scene.sceneIndex}.mp3`);
+      const resolvedAudioPath = await ensureMediaFile(
+        scene.voiceover.localPath,
+        scene.voiceover.audioUrl,
+        audioTarget
+      );
+
+      const downloadedAssetFiles: string[] = [];
+      const resolvedAssetPaths: string[] = [];
+
       for (let i = 0; i < scene.assets.length; i++) {
         const asset = scene.assets[i];
         const ext = asset.type === "STOCK_VIDEO" ? "mp4" : "jpg";
         const assetTarget = path.join(exportsDir, `asset-scene-${scene.sceneIndex}-${i}.${ext}`);
-        asset.localPath = await ensureMediaFile(
+        const resolvedPath = await ensureMediaFile(
           asset.localPath,
           asset.sourceUrl,
           assetTarget
         );
+        resolvedAssetPaths.push(resolvedPath);
+        if (resolvedPath === assetTarget) {
+          downloadedAssetFiles.push(assetTarget);
+        }
       }
-    }
-
-    // 5. Compose each scene
-    for (const scene of scenes) {
-      const voiceover = scene.voiceover!;
 
       const sceneOutputPath = path.join(exportsDir, `scene-${scene.sceneIndex}.mp4`);
 
+      console.log(`[ExportService] Composing scene ${scene.sceneIndex + 1}/${scenes.length}...`);
+
       await composeScene({
-        assetPaths: scene.assets.map(a => a.localPath!),
+        assetPaths: resolvedAssetPaths,
         assetType: scene.assets[0].type,
-        audioPath: voiceover.localPath!,
+        audioPath: resolvedAudioPath,
         subtitles: scene.subtitles.map((s) => ({
           text: s.text,
           startTime: s.startTime || 0,
           endTime: s.endTime || 5,
         })),
-        audioDuration: voiceover.duration || scene.duration || 5,
+        audioDuration: scene.voiceover.duration || scene.duration || 5,
         outputPath: sceneOutputPath,
         aspectRatio,
       });
 
       scenePaths.push(sceneOutputPath);
+
+      // Clean up raw downloaded scene visuals to keep disk & memory footprint minimal
+      for (const rawFile of downloadedAssetFiles) {
+        try { fs.unlinkSync(rawFile); } catch {}
+      }
+
+      // Proactively release memory
+      if (typeof (global as any).gc === "function") {
+        (global as any).gc();
+      }
     }
 
     // 6. Calculate total duration

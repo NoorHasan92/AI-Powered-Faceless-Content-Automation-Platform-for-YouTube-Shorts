@@ -98,11 +98,13 @@ export async function composeScene(options: {
       command.outputOptions([
         "-map", "[outv]", "-map", "[outa]",
         "-t", String(audioDuration),
-        "-c:v", "libx264", "-preset", "fast",
-        "-b:v", isLandscape ? "4M" : "6M",
-        "-maxrate", isLandscape ? "4.5M" : "6M",
-        "-bufsize", isLandscape ? "9M" : "12M",
-        "-c:a", "aac", "-b:a", "192k",
+        "-c:v", "libx264", "-preset", "veryfast",
+        "-threads", "1",
+        "-x264-params", "rc-lookahead=10:sync-lookahead=5:bframes=2",
+        "-b:v", isLandscape ? "3M" : "4.5M",
+        "-maxrate", isLandscape ? "3.5M" : "5M",
+        "-bufsize", "2M",
+        "-c:a", "aac", "-b:a", "128k",
         "-pix_fmt", "yuv420p", "-shortest",
       ]);
 
@@ -183,11 +185,13 @@ export async function composeScene(options: {
       command.outputOptions([
         "-map", "[outv]", "-map", "[outa]",
         "-t", String(audioDuration),
-        "-c:v", "libx264", "-preset", "fast",
-        "-b:v", isLandscape ? "4M" : "6M",
-        "-maxrate", isLandscape ? "4.5M" : "6M",
-        "-bufsize", isLandscape ? "9M" : "12M",
-        "-c:a", "aac", "-b:a", "192k",
+        "-c:v", "libx264", "-preset", "veryfast",
+        "-threads", "1",
+        "-x264-params", "rc-lookahead=10:sync-lookahead=5:bframes=2",
+        "-b:v", isLandscape ? "3M" : "4.5M",
+        "-maxrate", isLandscape ? "3.5M" : "5M",
+        "-bufsize", "2M",
+        "-c:a", "aac", "-b:a", "128k",
         "-pix_fmt", "yuv420p", "-shortest",
       ]);
     }

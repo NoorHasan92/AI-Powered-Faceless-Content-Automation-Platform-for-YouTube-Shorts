@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
   },
+  serverExternalPackages: ["fluent-ffmpeg", "ffmpeg-static", "@prisma/client", "pg"],
 };
 
 export default nextConfig;

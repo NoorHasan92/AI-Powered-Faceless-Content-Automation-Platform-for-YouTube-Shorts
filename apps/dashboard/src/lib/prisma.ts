@@ -1,15 +1,11 @@
 // File Location: src/lib/prisma.ts
-// This file initializes the native Prisma Client.
+// This file initializes the native Prisma Client with pg adapter.
 
 import { PrismaClient } from '@prisma/client';
 import { Pool } from 'pg';
 import { PrismaPg } from '@prisma/adapter-pg';
 
-const connectionString = process.env.DATABASE_URL;
-
-if (!connectionString) {
-  throw new Error("CRITICAL ERROR: DATABASE_URL environment variable is undefined or missing in Next.js!");
-}
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres:postgres@localhost:5432/build_dummy";
 
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);

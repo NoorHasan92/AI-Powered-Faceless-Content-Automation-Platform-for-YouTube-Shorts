@@ -22,6 +22,9 @@ ENV NODE_ENV=production
 ENV IS_RENDER_WORKER=true
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=10000
+# Build-time dummy variables to allow Next.js route collection without failing (overridden at runtime by Render)
+ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/build_dummy"
+ENV JWT_SECRET="render_build_dummy_jwt_secret_32_chars_long"
 
 # Copy root package files and install root dependencies
 COPY package.json package-lock.json ./

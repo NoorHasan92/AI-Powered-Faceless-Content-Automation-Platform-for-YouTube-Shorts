@@ -15,7 +15,9 @@ const isWindows = os.platform() === "win32";
 const binaryName = isWindows ? "ffmpeg.exe" : "ffmpeg";
 const actualFfmpegPath = path.join(process.cwd(), "node_modules", "ffmpeg-static", binaryName);
 
-if (fs.existsSync(actualFfmpegPath)) {
+if (fs.existsSync("/usr/bin/ffmpeg")) {
+  ffmpeg.setFfmpegPath("/usr/bin/ffmpeg");
+} else if (fs.existsSync(actualFfmpegPath)) {
   ffmpeg.setFfmpegPath(actualFfmpegPath);
 } else if (ffmpegPath) {
   // Fallback just in case

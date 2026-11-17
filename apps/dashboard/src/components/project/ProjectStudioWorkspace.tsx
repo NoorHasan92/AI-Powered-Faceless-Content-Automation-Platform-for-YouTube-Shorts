@@ -710,6 +710,7 @@ export default function ProjectStudioWorkspace({
               <VoiceoverPanel
                 status={project.status}
                 scenes={scenes}
+                projectId={project.id}
                 onGenerateAction={triggerVoiceoverAgent}
               />
             </div>

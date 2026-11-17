@@ -36,7 +36,7 @@ export default async function ProjectDetailsPage({ params }: ProjectDetailsProps
     project.creatorInstructions
   );
   const triggerVideoAgent = triggerExportAction.bind(null, project.id);
-  const triggerVoiceoverAgent = generateVoiceoverAction.bind(null, project.id);
+  const triggerVoiceoverAgent = generateVoiceoverAction.bind(null, project.id, false);
   const triggerAssetAgent = generateAssetsAction.bind(null, project.id);
   const triggerSubtitleAgent = generateSubtitlesAction.bind(null, project.id);
   const handleArchive = archiveProjectAction.bind(null, project.id);

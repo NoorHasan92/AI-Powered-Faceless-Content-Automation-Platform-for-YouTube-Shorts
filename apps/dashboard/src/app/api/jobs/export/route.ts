@@ -18,17 +18,17 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { projectId } = body;
+    const { projectId, jobId } = body;
 
     if (!projectId) {
       return NextResponse.json({ error: "projectId is required" }, { status: 400 });
     }
 
-    console.log(`[RenderWorker] Received export job for project: ${projectId}`);
+    console.log(`[RenderWorker] Received export job for project: ${projectId}, jobId: ${jobId || "none"}`);
 
     // Start FFmpeg compositing in background (Render's Node process keeps running)
     // We launch it as an untracked background promise so the caller (Vercel) gets a fast 200 response
-    triggerExport(projectId).then((result) => {
+    triggerExport(projectId, jobId).then((result) => {
       if (result.success) {
         console.log(`[RenderWorker] Successfully completed export for project: ${projectId}`);
       } else {

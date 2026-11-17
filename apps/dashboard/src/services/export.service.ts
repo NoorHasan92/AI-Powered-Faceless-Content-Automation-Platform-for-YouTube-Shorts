@@ -12,11 +12,13 @@ import { uploadVideoToCloudinary } from "@/lib/cloudinary-upload";
 import { getBgmFilePath } from "@/services/bgm.service";
 import fs from "fs";
 import path from "path";
+import { pipeline } from "stream/promises";
+import { Readable } from "stream";
 
 /**
  * Ensures media file is available locally on disk.
  * If localPath exists on this server, uses it.
- * Otherwise falls back to downloading remoteUrl (Cloudinary, Pexels, etc.) into destPath.
+ * Otherwise falls back to streaming remoteUrl (Cloudinary, Pexels, etc.) into destPath.
  */
 async function ensureMediaFile(
   localPath: string | null | undefined,
@@ -40,8 +42,19 @@ async function ensureMediaFile(
     fs.mkdirSync(path.dirname(destPath), { recursive: true });
     const res = await fetch(candidateUrl);
     if (!res.ok) throw new Error(`Failed to download remote asset from ${candidateUrl}: ${res.statusText}`);
-    const buffer = await res.arrayBuffer();
-    fs.writeFileSync(destPath, Buffer.from(buffer));
+    
+    // Stream directly to file on disk to avoid loading multi-megabyte buffers into Node heap
+    if (res.body) {
+      const fileStream = fs.createWriteStream(destPath);
+      await pipeline(Readable.fromWeb(res.body as any), fileStream);
+    } else {
+      const buffer = await res.arrayBuffer();
+      fs.writeFileSync(destPath, Buffer.from(buffer));
+    }
+
+    if (typeof (global as any).gc === "function") {
+      (global as any).gc();
+    }
     return destPath;
   }
 
@@ -61,13 +74,20 @@ async function ensureMediaFile(
  * 7. Update ExportJob + Project records
  */
 export async function triggerExport(
-  projectId: string
+  projectId: string,
+  existingJobId?: string
 ): Promise<ServiceResult<ExportJob>> {
   // Delegate to Render worker if configured on Vercel
   if (process.env.RENDER_WORKER_URL && !process.env.IS_RENDER_WORKER) {
     const workerUrl = process.env.RENDER_WORKER_URL.replace(/\/+$/, "");
     const workerSecret = process.env.WORKER_SECRET || "shortforge_secret_tmkc4Z55X69X67";
     console.log(`[ExportService] Delegating export job to Render worker at ${workerUrl}...`);
+
+    // Clean up any old PROCESSING jobs for this project to eliminate stalled UI duplicates
+    await prisma.exportJob.updateMany({
+      where: { projectId, status: "PROCESSING" },
+      data: { status: "FAILED", errorMessage: "Superseded by new export job" },
+    });
 
     const exportJob = await prisma.exportJob.create({
       data: {
@@ -91,7 +111,7 @@ export async function triggerExport(
           "Content-Type": "application/json",
           Authorization: `Bearer ${workerSecret}`,
         },
-        body: JSON.stringify({ projectId }),
+        body: JSON.stringify({ projectId, jobId: exportJob.id }),
       });
 
       if (!res.ok) {
@@ -114,16 +134,22 @@ export async function triggerExport(
     }
   }
 
-  // Create the ExportJob record first so UI can show "PROCESSING"
-  const exportJob = await prisma.exportJob.create({
-    data: {
-      projectId,
-      status: "PROCESSING",
-      resolution: "1080x1920",
-      format: "mp4",
-      startedAt: new Date(),
-    },
-  });
+  // Use existing ExportJob created by Vercel if passed, or create a fresh one
+  let exportJob = existingJobId
+    ? await prisma.exportJob.findUnique({ where: { id: existingJobId } })
+    : null;
+
+  if (!exportJob) {
+    exportJob = await prisma.exportJob.create({
+      data: {
+        projectId,
+        status: "PROCESSING",
+        resolution: "1080x1920",
+        format: "mp4",
+        startedAt: new Date(),
+      },
+    });
+  }
 
   try {
     // 1. Mark project as exporting
@@ -223,10 +249,21 @@ export async function triggerExport(
 
       scenePaths.push(sceneOutputPath);
 
-      // Clean up raw downloaded scene visuals to keep disk & memory footprint minimal
+      // Clean up raw downloaded scene visuals and audio to keep disk & memory footprint minimal
       for (const rawFile of downloadedAssetFiles) {
         try { fs.unlinkSync(rawFile); } catch {}
       }
+      try {
+        if (resolvedAudioPath.startsWith(exportsDir)) {
+          fs.unlinkSync(resolvedAudioPath);
+        }
+      } catch {}
+      try {
+        const assFile = sceneOutputPath.replace(".mp4", ".ass");
+        if (fs.existsSync(assFile)) {
+          fs.unlinkSync(assFile);
+        }
+      } catch {}
 
       // Proactively release memory
       if (typeof (global as any).gc === "function") {

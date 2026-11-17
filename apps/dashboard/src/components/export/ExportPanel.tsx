@@ -1,4 +1,8 @@
 // File Location: src/components/export/ExportPanel.tsx
+"use client";
+
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Film, Play, Download, CheckCircle2, Clock } from "lucide-react";
 import SectionCard from "@/components/ui/SectionCard";
 import SubmitButton from "@/components/ui/SubmitButton";
@@ -12,6 +16,18 @@ interface ExportPanelProps {
 }
 
 export default function ExportPanel({ status, exportJobs, onGenerateAction }: ExportPanelProps) {
+  const router = useRouter();
+  const isProcessing = exportJobs.some((job) => job.status === "PROCESSING");
+
+  // Auto-refresh the page every 4 seconds while any export job is rendering
+  useEffect(() => {
+    if (!isProcessing) return;
+    const interval = setInterval(() => {
+      router.refresh();
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [isProcessing, router]);
+
   const canExport = status === "EXPORT_QUEUED" || status === "COMPLETED";
 
   return (

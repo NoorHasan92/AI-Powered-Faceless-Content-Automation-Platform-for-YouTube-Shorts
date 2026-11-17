@@ -60,7 +60,7 @@ RUN cd apps/dashboard && npm run build
 RUN mkdir -p /tmp/tars-data && chmod 777 /tmp/tars-data
 
 # Set runtime Node memory constraints to protect against container OOM on 512MB instances
-ENV NODE_OPTIONS="--max-old-space-size=180 --expose-gc"
+ENV NODE_OPTIONS="--max-old-space-size=96 --expose-gc"
 
 EXPOSE 10000
 

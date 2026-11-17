@@ -71,14 +71,14 @@ export async function composeScene(options: {
       const textFilters = assFilter ? `[bg]${assFilter}[outv]` : `[bg]copy[outv]`;
 
       if (assetType === "STOCK_VIDEO") {
-        command.input(assetPath).inputOptions(["-stream_loop", "-1"]).input(audioPath);
+        command.input(assetPath).inputOptions(["-stream_loop", "-1", "-threads", "1"]).input(audioPath).inputOptions(["-threads", "1"]);
         command.complexFilter([
           `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=30[bg]`,
           textFilters,
           `[1:a]afade=t=in:st=0:d=0.1,afade=t=out:st=${Math.max(0, audioDuration - 0.2)}:d=0.2[outa]`
         ]);
       } else if (assetType === "AI_IMAGE") {
-        command.input(assetPath).input(audioPath);
+        command.input(assetPath).inputOptions(["-threads", "1"]).input(audioPath).inputOptions(["-threads", "1"]);
         const frames = Math.ceil(audioDuration * 30) + 30;
         command.complexFilter([
           `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},zoompan=z='min(zoom+0.001,1.15)':d=${frames}:x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s=${resStr}:fps=30[bg]`,
@@ -87,7 +87,7 @@ export async function composeScene(options: {
         ]);
       } else {
         // STOCK_IMAGE and other fallbacks
-        command.input(assetPath).inputOptions(["-loop", "1"]).input(audioPath);
+        command.input(assetPath).inputOptions(["-loop", "1", "-threads", "1"]).input(audioPath).inputOptions(["-threads", "1"]);
         command.complexFilter([
           `[0:v]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=30[bg]`,
           textFilters,
@@ -96,14 +96,15 @@ export async function composeScene(options: {
       }
 
       command.outputOptions([
+        "-filter_complex_threads", "1",
         "-map", "[outv]", "-map", "[outa]",
         "-t", String(audioDuration),
         "-c:v", "libx264", "-preset", "veryfast",
         "-threads", "1",
-        "-x264-params", "rc-lookahead=10:sync-lookahead=5:bframes=2",
-        "-b:v", isLandscape ? "3M" : "4.5M",
-        "-maxrate", isLandscape ? "3.5M" : "5M",
-        "-bufsize", "2M",
+        "-x264-params", "rc-lookahead=5:sync-lookahead=0:bframes=0:ref=1",
+        "-b:v", isLandscape ? "2.5M" : "3.5M",
+        "-maxrate", isLandscape ? "3M" : "4M",
+        "-bufsize", "1M",
         "-c:a", "aac", "-b:a", "128k",
         "-pix_fmt", "yuv420p", "-shortest",
       ]);
@@ -114,9 +115,9 @@ export async function composeScene(options: {
       // ---------------------------------------------------------
       const N = assetPaths.length;
       for (const p of assetPaths) {
-        command.input(p);
+        command.input(p).inputOptions(["-threads", "1"]);
       }
-      command.input(audioPath); // Audio is input index N
+      command.input(audioPath).inputOptions(["-threads", "1"]); // Audio is input index N
 
       const fadeDuration = 0.4;
       const totalRawDurationNeeded = audioDuration + (N - 1) * fadeDuration;
@@ -183,14 +184,15 @@ export async function composeScene(options: {
       command.complexFilter(filterSegments);
 
       command.outputOptions([
+        "-filter_complex_threads", "1",
         "-map", "[outv]", "-map", "[outa]",
         "-t", String(audioDuration),
         "-c:v", "libx264", "-preset", "veryfast",
         "-threads", "1",
-        "-x264-params", "rc-lookahead=10:sync-lookahead=5:bframes=2",
-        "-b:v", isLandscape ? "3M" : "4.5M",
-        "-maxrate", isLandscape ? "3.5M" : "5M",
-        "-bufsize", "2M",
+        "-x264-params", "rc-lookahead=5:sync-lookahead=0:bframes=0:ref=1",
+        "-b:v", isLandscape ? "2.5M" : "3.5M",
+        "-maxrate", isLandscape ? "3M" : "4M",
+        "-bufsize", "1M",
         "-c:a", "aac", "-b:a", "128k",
         "-pix_fmt", "yuv420p", "-shortest",
       ]);

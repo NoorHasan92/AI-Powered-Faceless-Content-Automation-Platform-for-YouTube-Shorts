@@ -10,14 +10,14 @@ const publicRoutes = ["/login", "/forgot-password"];
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Ignore API auth routes (OAuth) and static files
-  if (pathname.startsWith("/api/auth") || pathname.includes(".")) {
+  // Ignore all API routes and static files
+  if (pathname.startsWith("/api") || pathname.includes(".")) {
     return NextResponse.next();
   }
 
   const session = request.cookies.get("session")?.value;
   const isPublicRoute = publicRoutes.includes(pathname);
-  const isProtectedRoute = protectedRoutes.some((route) => pathname.startsWith(route)) && !isPublicRoute;
+  const isProtectedRoute = (pathname === "/" || protectedRoutes.some((route) => route !== "/" && pathname.startsWith(route))) && !isPublicRoute;
 
   // If the route is protected and no session exists, redirect to login
   if (isProtectedRoute && !session) {

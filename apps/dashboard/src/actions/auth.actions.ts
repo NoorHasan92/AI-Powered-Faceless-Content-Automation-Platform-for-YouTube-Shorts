@@ -11,7 +11,7 @@ import ResetPasswordEmail from "@/components/emails/ResetPasswordEmail";
 import PasswordChangedEmail from "@/components/emails/PasswordChangedEmail";
 import crypto from "crypto";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || "re_dummy_build_key");
 
 export async function loginAction(formData: FormData) {
   const identifier = formData.get("username") as string;

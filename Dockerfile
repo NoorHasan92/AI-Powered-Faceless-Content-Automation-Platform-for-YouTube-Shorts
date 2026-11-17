@@ -25,6 +25,12 @@ ENV PORT=10000
 # Build-time dummy variables to allow Next.js route collection without failing (overridden at runtime by Render)
 ENV DATABASE_URL="postgresql://postgres:postgres@localhost:5432/build_dummy"
 ENV JWT_SECRET="render_build_dummy_jwt_secret_32_chars_long"
+ENV PEXELS_API_KEY="render_build_dummy_pexels_key"
+ENV GEMINI_API_KEY="render_build_dummy_gemini_key"
+ENV CLOUDINARY_CLOUD_NAME="render_build_dummy"
+ENV CLOUDINARY_API_KEY="render_build_dummy"
+ENV CLOUDINARY_API_SECRET="render_build_dummy"
+ENV RESEND_API_KEY="re_dummy_build_key"
 
 # Copy root package files and install root dependencies
 COPY package.json package-lock.json ./

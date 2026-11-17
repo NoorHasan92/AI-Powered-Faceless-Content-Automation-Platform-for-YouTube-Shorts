@@ -16,7 +16,10 @@ import { generateImage } from "./image-generation/image-generation.service";
 import { ImageGenerationError } from "./image-generation/types";
 import { hashString, mulberry32, seededShuffle } from "@/lib/prng";
 
-const pexelsClient = createClient(process.env.PEXELS_API_KEY || "");
+function getPexelsClient() {
+  const apiKey = process.env.PEXELS_API_KEY || "dummy_pexels_key_for_build";
+  return createClient(apiKey);
+}
 
 /**
  * Download a file from a URL to a local path.
@@ -82,7 +85,7 @@ async function findPexelsAsset(
 
     if (type === "video") {
       try {
-        let videoResult = await pexelsClient.videos.search({
+        let videoResult = await getPexelsClient().videos.search({
           query,
           per_page: 20,
           page: randomPage,
@@ -91,7 +94,7 @@ async function findPexelsAsset(
 
         // Fallback to page 1 if random page had no videos
         if (isPexelsError(videoResult) || !videoResult.videos || videoResult.videos.length === 0) {
-          videoResult = await pexelsClient.videos.search({
+          videoResult = await getPexelsClient().videos.search({
             query,
             per_page: 20,
             page: 1,
@@ -130,7 +133,7 @@ async function findPexelsAsset(
       }
     } else if (type === "image") {
       try {
-        let photoResult = await pexelsClient.photos.search({
+        let photoResult = await getPexelsClient().photos.search({
           query,
           per_page: 20,
           page: randomPage,
@@ -138,7 +141,7 @@ async function findPexelsAsset(
         });
 
         if (isPexelsError(photoResult) || !photoResult.photos || photoResult.photos.length === 0) {
-          photoResult = await pexelsClient.photos.search({
+          photoResult = await getPexelsClient().photos.search({
             query,
             per_page: 20,
             page: 1,

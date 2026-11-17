@@ -36,15 +36,19 @@ ENV RESEND_API_KEY="re_dummy_build_key"
 COPY package.json package-lock.json ./
 RUN npm ci --include=dev
 
+# Copy Prisma schema and config
+COPY prisma ./prisma
+COPY prisma.config.ts ./
+COPY apps/dashboard/prisma ./apps/dashboard/prisma/
+COPY apps/dashboard/prisma.config.ts ./apps/dashboard/
+
 # Copy apps/dashboard package files and install dashboard dependencies (Next.js, React, Linux SWC)
 COPY apps/dashboard/package.json ./apps/dashboard/
 RUN cd apps/dashboard && npm install --include=dev
 
-# Copy Prisma schema and generate client
-COPY prisma ./prisma
-COPY prisma.config.ts ./
+# Generate Prisma client
 RUN npx prisma generate
-RUN mkdir -p ./apps/dashboard/node_modules/@prisma && cp -r node_modules/@prisma/client ./apps/dashboard/node_modules/@prisma/client 2>/dev/null || true
+RUN cd apps/dashboard && npx prisma generate 2>/dev/null || true
 
 # Copy the rest of the application
 COPY apps/dashboard ./apps/dashboard

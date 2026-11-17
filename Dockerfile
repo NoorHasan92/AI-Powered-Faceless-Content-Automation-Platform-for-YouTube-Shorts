@@ -1,5 +1,4 @@
 # Dockerfile for ShortForge Render Worker
-# Debian Bookworm includes native FFmpeg with libx264, libass, and AAC support.
 FROM node:20-bookworm-slim AS base
 
 # Install system dependencies: FFmpeg, fonts, fontconfig, and SSL certificates
@@ -11,6 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
     openssl \
+    python3 \
+    make \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -21,23 +23,25 @@ ENV IS_RENDER_WORKER=true
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=10000
 
-# Copy root and workspace package files
+# Copy root package files and install root dependencies
 COPY package.json package-lock.json ./
-COPY apps/dashboard/package.json ./apps/dashboard/
-
-# Install dependencies
 RUN npm ci --include=dev
+
+# Copy apps/dashboard package files and install dashboard dependencies (Next.js, React, Linux SWC)
+COPY apps/dashboard/package.json ./apps/dashboard/
+RUN cd apps/dashboard && npm install --include=dev
 
 # Copy Prisma schema and generate client
 COPY prisma ./prisma
 COPY prisma.config.ts ./
 RUN npx prisma generate
+RUN mkdir -p ./apps/dashboard/node_modules/@prisma && cp -r node_modules/@prisma/client ./apps/dashboard/node_modules/@prisma/client 2>/dev/null || true
 
 # Copy the rest of the application
 COPY apps/dashboard ./apps/dashboard
 
 # Build the Next.js app for production
-RUN npm --prefix apps/dashboard run build
+RUN cd apps/dashboard && npm run build
 
 # Create temporary pipeline working directory with proper permissions
 RUN mkdir -p /tmp/tars-data && chmod 777 /tmp/tars-data

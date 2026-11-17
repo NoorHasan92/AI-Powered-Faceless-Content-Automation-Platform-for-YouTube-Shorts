@@ -9,13 +9,12 @@ export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
-    // Optional secret verification to prevent unauthorized export triggers
-    const workerSecret = process.env.WORKER_SECRET;
-    if (workerSecret) {
-      const authHeader = request.headers.get("authorization");
-      if (authHeader !== `Bearer ${workerSecret}`) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-      }
+    // Verify shared secret to prevent unauthorized export triggers
+    const expectedSecret = process.env.WORKER_SECRET || "shortforge_secret_tmkc4Z55X69X67";
+    const authHeader = request.headers.get("authorization");
+    if (authHeader !== `Bearer ${expectedSecret}`) {
+      console.warn(`[RenderWorker] Unauthorized export trigger attempt. Received: ${authHeader ? 'Bearer ***' : 'none'}`);
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const body = await request.json();

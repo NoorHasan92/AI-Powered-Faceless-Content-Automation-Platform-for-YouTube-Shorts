@@ -15,24 +15,37 @@ import path from "path";
 
 /**
  * Ensures media file is available locally on disk.
- * If localPath exists, uses it; otherwise downloads from Cloudinary/HTTP URL.
+ * If localPath exists on this server, uses it.
+ * Otherwise falls back to downloading remoteUrl (Cloudinary, Pexels, etc.) into destPath.
  */
-async function ensureLocalFile(urlOrPath: string | null | undefined, destPath: string): Promise<string> {
-  if (urlOrPath && fs.existsSync(urlOrPath)) {
-    return urlOrPath;
+async function ensureMediaFile(
+  localPath: string | null | undefined,
+  remoteUrl: string | null | undefined,
+  destPath: string
+): Promise<string> {
+  if (localPath && fs.existsSync(localPath) && fs.statSync(localPath).size > 0) {
+    return localPath;
   }
   if (fs.existsSync(destPath) && fs.statSync(destPath).size > 0) {
     return destPath;
   }
-  if (urlOrPath && (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://"))) {
+  const candidateUrl =
+    (remoteUrl && (remoteUrl.startsWith("http://") || remoteUrl.startsWith("https://")))
+      ? remoteUrl
+      : (localPath && (localPath.startsWith("http://") || localPath.startsWith("https://")))
+      ? localPath
+      : null;
+
+  if (candidateUrl) {
     fs.mkdirSync(path.dirname(destPath), { recursive: true });
-    const res = await fetch(urlOrPath);
-    if (!res.ok) throw new Error(`Failed to download remote asset from ${urlOrPath}: ${res.statusText}`);
+    const res = await fetch(candidateUrl);
+    if (!res.ok) throw new Error(`Failed to download remote asset from ${candidateUrl}: ${res.statusText}`);
     const buffer = await res.arrayBuffer();
     fs.writeFileSync(destPath, Buffer.from(buffer));
     return destPath;
   }
-  throw new Error(`Media file not found locally and has no valid download URL: ${urlOrPath}`);
+
+  throw new Error(`Media file not found locally (${localPath}) and has no valid remote URL (${remoteUrl})`);
 }
 
 /**
@@ -52,7 +65,9 @@ export async function triggerExport(
 ): Promise<ServiceResult<ExportJob>> {
   // Delegate to Render worker if configured on Vercel
   if (process.env.RENDER_WORKER_URL && !process.env.IS_RENDER_WORKER) {
-    console.log(`[ExportService] Delegating export job to Render worker at ${process.env.RENDER_WORKER_URL}...`);
+    const workerUrl = process.env.RENDER_WORKER_URL.replace(/\/+$/, "");
+    const workerSecret = process.env.WORKER_SECRET || "shortforge_secret_tmkc4Z55X69X67";
+    console.log(`[ExportService] Delegating export job to Render worker at ${workerUrl}...`);
 
     const exportJob = await prisma.exportJob.create({
       data: {
@@ -70,11 +85,11 @@ export async function triggerExport(
     });
 
     try {
-      const res = await fetch(`${process.env.RENDER_WORKER_URL}/api/jobs/export`, {
+      const res = await fetch(`${workerUrl}/api/jobs/export`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(process.env.WORKER_SECRET ? { Authorization: `Bearer ${process.env.WORKER_SECRET}` } : {}),
+          Authorization: `Bearer ${workerSecret}`,
         },
         body: JSON.stringify({ projectId }),
       });
@@ -158,8 +173,9 @@ export async function triggerExport(
         );
       }
       const audioTarget = path.join(exportsDir, `audio-scene-${scene.sceneIndex}.mp3`);
-      scene.voiceover.localPath = await ensureLocalFile(
-        scene.voiceover.localPath || scene.voiceover.audioUrl,
+      scene.voiceover.localPath = await ensureMediaFile(
+        scene.voiceover.localPath,
+        scene.voiceover.audioUrl,
         audioTarget
       );
 
@@ -173,8 +189,9 @@ export async function triggerExport(
         const asset = scene.assets[i];
         const ext = asset.type === "STOCK_VIDEO" ? "mp4" : "jpg";
         const assetTarget = path.join(exportsDir, `asset-scene-${scene.sceneIndex}-${i}.${ext}`);
-        asset.localPath = await ensureLocalFile(
-          asset.localPath || asset.sourceUrl,
+        asset.localPath = await ensureMediaFile(
+          asset.localPath,
+          asset.sourceUrl,
           assetTarget
         );
       }

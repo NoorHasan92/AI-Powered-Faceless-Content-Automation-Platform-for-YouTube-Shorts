@@ -1,0 +1,254 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum ProjectStatus {
+  DRAFT
+  GENERATING_SCRIPT
+  SCRIPT_READY          // Script generated, production modules unlocked
+  IN_PRODUCTION         // Voiceover/assets/subtitles work in progress
+  EXPORT_QUEUED         // Ready for video compilation
+  EXPORTING             // Video being compiled
+  COMPLETED
+  FAILED
+}
+
+enum PublishStatus {
+  IDLE
+  SCHEDULED
+  PUBLISHED
+  FAILED
+}
+
+// Reusable status for any generation step (voiceover, assets, exports)
+enum GenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum VisualRole {
+  LITERAL_FOOTAGE
+  ABSTRACT_ANIMATION
+  INFOGRAPHIC
+  DEMONSTRATION
+  TRANSITION
+}
+
+enum VisualSource {
+  STOCK_VIDEO
+  STOCK_IMAGE
+  AI_IMAGE
+  INFOGRAPHIC
+}
+
+enum EndingIntent {
+  CTA
+  EMOTIONAL_PAYOFF
+  PRACTICAL_ADVICE
+}
+
+enum MotionTreatment {
+  NONE
+  KEN_BURNS
+  INFOGRAPHIC_MOTION
+  LOOP_VIDEO
+}
+
+enum RoutingDowngradeReason {
+  AI_QUOTA
+  IMAGE_GENERATION_FAILED
+  MOTION_SUBSTITUTION
+  NO_STOCK_VIDEO_FOUND
+  AI_DISABLED_FOR_PROJECT
+}
+
+// ---------------------------------------------------------------------------
+// Core Models
+// ---------------------------------------------------------------------------
+
+model User {
+  id              String    @id @default(uuid())
+  username        String    @unique
+  email           String?   @unique // Optional initially to prevent breaking existing users, or we can make it required if we have a default/migration
+  password        String    // bcrypt hashed password
+  resetOtp        String?   // bcrypt hashed OTP for password reset
+  resetOtpExpires DateTime? // expiration time for the OTP
+  createdAt       DateTime  @default(now())
+}
+
+model Project {
+  id          String        @id @default(uuid())
+  title       String
+  niche       String        // e.g., "science", "finance", "animals"
+  tone        String        @default("educational")
+  targetDuration String     @default("30-50 Seconds")
+  videoFormat String        @default("SHORTS") // "SHORTS" or "LONG_FORM"
+  aspectRatio String        @default("9:16")   // "9:16" or "16:9"
+  subtopics   String[]      @default([])       // User requested subtopics / deep dive angles
+  bgmTrack    String?                          // "cinematic_documentary", "investigative_mystery", etc.
+  voice       String        @default("en-US-AvaMultilingualNeural")
+  status      ProjectStatus @default(DRAFT)
+  specificTopic       String?
+  creatorInstructions String?       @db.Text
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  isArchived  Boolean       @default(false)
+  maxAiImageScenes Int @default(2)
+  preferredMotionRatio Float @default(0.7)
+
+  script      Script?
+  videos      Video[]
+  exportJobs  ExportJob[]
+}
+
+model Script {
+  id                String   @id @default(uuid())
+  projectId         String   @unique
+  hook              String   @db.Text
+  bodyText          String   @db.Text
+  cta               String   @db.Text
+  metaTitle         String
+  metaDescription   String   @db.Text
+  hashtags          String[]
+  estimatedDuration Float?               // Total estimated seconds for the full script
+  creativeBrief     Json?                // Generated during Stage 1
+  researchDossier   Json?                // Deep research: YouTube trends, competitor analysis, factual dossier
+  chapters          Json?                // Multi-act chapter breakdown
+  factChecked       Boolean  @default(false)
+  factCheckNotes    String?  @db.Text
+  createdAt         DateTime @default(now())
+
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  scenes            Scene[]
+}
+
+model Scene {
+  id              String   @id @default(uuid())
+  scriptId        String
+  sceneIndex      Int      // Order of appearance
+  chapterIndex    Int?     // Act / Chapter index for long-form video
+  chapterTitle    String?  // Act / Chapter title
+  narrationText   String   @db.Text
+  visualPrompt    String   @db.Text // AI generation prompt text
+  onScreenCaption String
+  searchKeywords  String[]           // For stock asset search queries (light tags)
+  assetSearches   Json?              // Structured ordered retrieval plan
+  visualRole      VisualRole?        // The selected visual presentation mode
+  visualSource    VisualSource       @default(STOCK_VIDEO)
+  visualSourcePlanned VisualSource?
+  motionTreatment MotionTreatment?   @default(NONE)
+  routingDowngradeReason RoutingDowngradeReason?
+  generatedAssetPrompt String?       @db.Text
+  infographicPayload   Json?
+  endingIntent    EndingIntent?      // (Used primarily on the final scene) Intent of the beat
+  duration        Float    @default(0.0) // Set after TTS audio generation
+
+  script          Script   @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  assets          Asset[]
+  voiceover       Voiceover?
+  subtitles       SubtitleChunk[]
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline Models
+// ---------------------------------------------------------------------------
+
+model Voiceover {
+  id          String           @id @default(uuid())
+  sceneId     String           @unique
+  provider    String           @default("placeholder") // "elevenlabs", "google-tts", etc.
+  voiceId     String?                                   // Provider-specific voice identifier
+  audioUrl    String?          @db.Text                 // Remote URL or CDN path
+  localPath   String?                                   // Local filesystem path
+  duration    Float?                                     // Actual audio duration in seconds
+  wordTimings Json?                                     // Ground-truth word timestamps [{ word, start, end, duration }]
+  status      GenerationStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+
+  scene       Scene            @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+}
+
+model SubtitleChunk {
+  id          String   @id @default(uuid())
+  sceneId     String
+  text        String   @db.Text          // The caption/subtitle text
+  startTime   Float?                      // Seconds from scene start (for timing)
+  endTime     Float?
+  style       String   @default("default") // Future: style preset name
+  createdAt   DateTime @default(now())
+
+  scene       Scene    @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+}
+
+model Asset {
+  id           String           @id @default(uuid())
+  sceneId      String
+  type         String           // "STOCK_VIDEO", "STOCK_IMAGE", "AI_IMAGE"
+  sourceUrl    String           @db.Text
+  localPath    String?          // Download location on worker server
+  searchQuery  String?          // The specific query used to find this asset
+  status       GenerationStatus @default(PENDING)
+  createdAt    DateTime         @default(now())
+
+  scene        Scene            @relation(fields: [sceneId], references: [id], onDelete: Cascade)
+}
+
+model ExportJob {
+  id           String           @id @default(uuid())
+  projectId    String
+  status       GenerationStatus @default(PENDING)
+  outputUrl    String?          @db.Text    // Final rendered video URL
+  localPath    String?
+  duration     Float?                        // Final video duration
+  resolution   String           @default("1080x1920") // 9:16 shorts format
+  format       String           @default("mp4")
+  errorMessage String?          @db.Text
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime         @default(now())
+
+  project      Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+// ---------------------------------------------------------------------------
+// Publishing & Analytics (Phase 2+)
+// ---------------------------------------------------------------------------
+
+model Video {
+  id            String        @id @default(uuid())
+  projectId     String        @unique
+  fileUrl       String?       @db.Text
+  localPath     String?
+  qualityScore  Float         @default(0.0)
+  publishStatus PublishStatus @default(IDLE)
+  scheduledFor  DateTime?
+  publishedAt   DateTime?
+  youtubeId     String?       // Remote reference ID from YouTube Data API
+  createdAt     DateTime      @default(now())
+
+  project       Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  analytics     Analytics[]
+}
+
+model Analytics {
+  id          String   @id @default(uuid())
+  videoId     String
+  views       Int      @default(0)
+  likes       Int      @default(0)
+  comments    Int      @default(0)
+  retention   Float    @default(0.0) // Watch time percentage
+  recordedAt  DateTime @default(now())
+
+  video       Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+}

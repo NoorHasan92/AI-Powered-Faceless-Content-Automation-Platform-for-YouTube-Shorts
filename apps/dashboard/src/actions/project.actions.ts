@@ -63,12 +63,16 @@ export async function createProjectAction(formData: FormData) {
   // Validate with Zod
   const parsed = createProjectSchema.safeParse(raw);
   if (!parsed.success) {
-    return; // Silently reject invalid input (form has client-side `required` too)
+    console.error("[createProjectAction] Validation failed:", JSON.stringify(parsed.error.format(), null, 2));
+    throw new Error(`Validation failed: ${parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ')}`);
   }
 
   const result = await createProject(parsed.data);
   if (result.success && result.data) {
     revalidatePath("/projects");
     redirect(`/projects/${result.data.id}`);
+  } else {
+    console.error("[createProjectAction] Project creation failed:", result.error);
+    throw new Error(result.error || "Failed to create project");
   }
 }

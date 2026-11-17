@@ -26,6 +26,32 @@ if (fs.existsSync("/usr/bin/ffmpeg")) {
 
 import { generateAssFile } from "./ass-utils";
 
+// Active FFmpeg command registry for instant task cancellation
+const activeCommands = new Map<string, any>();
+
+export function registerActiveCommand(jobId: string, cmd: any) {
+  activeCommands.set(jobId, cmd);
+}
+
+export function unregisterActiveCommand(jobId: string) {
+  activeCommands.delete(jobId);
+}
+
+export function killActiveJob(jobId: string): boolean {
+  const cmd = activeCommands.get(jobId);
+  if (cmd) {
+    try {
+      console.log(`[FFmpeg] Killing active FFmpeg process for job: ${jobId}`);
+      cmd.kill("SIGKILL");
+      activeCommands.delete(jobId);
+      return true;
+    } catch (e) {
+      console.warn(`[FFmpeg] Error killing process for job ${jobId}:`, e);
+    }
+  }
+  return false;
+}
+
 /**
  * Compose a single scene: background visual + voiceover audio + subtitle text.
  * Output is a 1080x1920 (9:16 portrait) or 1920x1080 (16:9 landscape) MP4 clip.
@@ -38,6 +64,7 @@ export async function composeScene(options: {
   audioDuration: number;    // Duration in seconds
   outputPath: string;       // Where to save the scene clip
   aspectRatio?: "16:9" | "9:16"; // "16:9" for long-form landscape or "9:16" for vertical Shorts
+  jobId?: string;           // Optional export job ID for cancellation tracking
 }): Promise<void> {
   const { assetPaths, assetType, audioPath, subtitles, audioDuration, outputPath, aspectRatio = "9:16" } = options;
 
@@ -201,10 +228,17 @@ export async function composeScene(options: {
     command
       .output(outputPath)
       .on("start", (cmdline) => {
+        if (options.jobId) registerActiveCommand(options.jobId, command);
         console.log(`[FFmpeg] Spawned for ${assetType} scene: ${cmdline}`);
       })
-      .on("end", () => resolve())
-      .on("error", (err) => reject(new Error(`FFmpeg scene error: ${err.message}`)))
+      .on("end", () => {
+        if (options.jobId) unregisterActiveCommand(options.jobId);
+        resolve();
+      })
+      .on("error", (err) => {
+        if (options.jobId) unregisterActiveCommand(options.jobId);
+        reject(new Error(`FFmpeg scene error: ${err.message}`));
+      })
       .run();
   });
 }
@@ -216,7 +250,8 @@ export function concatenateScenes(
   scenePaths: string[],
   outputPath: string,
   bgmPath?: string | null,
-  totalDuration?: number
+  totalDuration?: number,
+  jobId?: string
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     // Write a concat list file for FFmpeg
@@ -226,38 +261,49 @@ export function concatenateScenes(
 
     // If no BGM, do simple direct stream copy
     if (!bgmPath || !fs.existsSync(bgmPath)) {
-      ffmpeg()
+      const cmd = ffmpeg()
         .input(listPath)
         .inputOptions(["-f", "concat", "-safe", "0"])
         .outputOptions([
           "-c", "copy", // No re-encoding since all scenes share the same codec settings
         ])
         .output(outputPath)
+        .on("start", () => {
+          if (jobId) registerActiveCommand(jobId, cmd);
+        })
         .on("end", () => {
+          if (jobId) unregisterActiveCommand(jobId);
           try { fs.unlinkSync(listPath); } catch { /* ignore */ }
           resolve();
         })
-        .on("error", (err) => reject(new Error(`FFmpeg concat error: ${err.message}`)))
-        .run();
+        .on("error", (err) => {
+          if (jobId) unregisterActiveCommand(jobId);
+          reject(new Error(`FFmpeg concat error: ${err.message}`));
+        });
+      cmd.run();
       return;
     }
 
     // With BGM: first concat scenes, then overlay ducked BGM track
     const tempConcatPath = outputPath.replace(".mp4", "_temp_concat.mp4");
 
-    ffmpeg()
+    const concatCmd = ffmpeg()
       .input(listPath)
       .inputOptions(["-f", "concat", "-safe", "0"])
       .outputOptions(["-c", "copy"])
       .output(tempConcatPath)
+      .on("start", () => {
+        if (jobId) registerActiveCommand(jobId, concatCmd);
+      })
       .on("end", () => {
+        if (jobId) unregisterActiveCommand(jobId);
         try { fs.unlinkSync(listPath); } catch { /* ignore */ }
 
         // Audio mixing pass: loop BGM at 12% volume with gentle fades
         const duration = totalDuration || 60;
         const fadeOutStart = Math.max(0, duration - 2.5);
 
-        ffmpeg()
+        const mixCmd = ffmpeg()
           .input(tempConcatPath)
           .input(bgmPath)
           .inputOptions(["-stream_loop", "-1"])
@@ -274,11 +320,16 @@ export function concatenateScenes(
             "-shortest",
           ])
           .output(outputPath)
+          .on("start", () => {
+            if (jobId) registerActiveCommand(jobId, mixCmd);
+          })
           .on("end", () => {
+            if (jobId) unregisterActiveCommand(jobId);
             try { fs.unlinkSync(tempConcatPath); } catch { /* ignore */ }
             resolve();
           })
           .on("error", (mixErr) => {
+            if (jobId) unregisterActiveCommand(jobId);
             console.warn("[FFmpeg] BGM mixing pass encountered error, falling back to tempConcat:", mixErr);
             try {
               if (fs.existsSync(tempConcatPath)) {
@@ -289,11 +340,14 @@ export function concatenateScenes(
             } catch (fallbackErr) {
               reject(new Error(`FFmpeg BGM mix error: ${mixErr.message}`));
             }
-          })
-          .run();
+          });
+        mixCmd.run();
       })
-      .on("error", (err) => reject(new Error(`FFmpeg concat error: ${err.message}`)))
-      .run();
+      .on("error", (err) => {
+        if (jobId) unregisterActiveCommand(jobId);
+        reject(new Error(`FFmpeg concat error: ${err.message}`));
+      });
+    concatCmd.run();
   });
 }
 

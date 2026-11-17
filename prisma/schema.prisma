@@ -34,6 +34,7 @@ enum GenerationStatus {
   PROCESSING
   COMPLETED
   FAILED
+  CANCELLED
 }
 
 enum VisualRole {
@@ -208,6 +209,9 @@ model ExportJob {
   id           String           @id @default(uuid())
   projectId    String
   status       GenerationStatus @default(PENDING)
+  progress     Int              @default(0)
+  currentScene Int              @default(0)
+  totalScenes  Int              @default(0)
   outputUrl    String?          @db.Text    // Final rendered video URL
   localPath    String?
   duration     Float?                        // Final video duration

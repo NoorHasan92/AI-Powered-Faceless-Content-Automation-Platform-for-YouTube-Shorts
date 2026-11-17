@@ -99,12 +99,14 @@ export default function CreateProjectForm() {
   const [playingVoice, setPlayingVoice] = useState<string | null>(null);
   const [playingBgm, setPlayingBgm] = useState<string | null>(null);
 
-  // Form field state for trend auto-fill
+  // Form field state for trend auto-fill and persistent wizard submission
   const [title, setTitle] = useState("");
   const [niche, setNiche] = useState<string>(NICHE_OPTIONS[0].value);
   const [tone, setTone] = useState<string>(TONE_OPTIONS[0].value);
   const [specificTopic, setSpecificTopic] = useState("");
   const [subtopics, setSubtopics] = useState("");
+  const [creatorInstructions, setCreatorInstructions] = useState("");
+  const [titleError, setTitleError] = useState(false);
 
   // Trending Radar state
   const [isTrendsOpen, setIsTrendsOpen] = useState(false);
@@ -198,13 +200,29 @@ export default function CreateProjectForm() {
     setIsTrendsOpen(false);
   };
 
+  const handleStepClick = (stepId: number) => {
+    if (stepId > 1 && !title.trim()) {
+      setTitleError(true);
+      return;
+    }
+    setTitleError(false);
+    setCurrentStep(stepId);
+  };
+
   return (
     <form action={createProjectAction} className="space-y-6">
-      {/* Hidden inputs always present for form submission */}
+      {/* Hidden inputs always present for form submission across all wizard steps */}
       <input type="hidden" name="videoFormat" value={videoFormat} />
       <input type="hidden" name="aspectRatio" value={videoFormat === "LONG_FORM" ? "16:9" : "9:16"} />
       <input type="hidden" name="voice" value={selectedVoice} />
       <input type="hidden" name="bgmTrack" value={selectedBgm} />
+      <input type="hidden" name="title" value={title} />
+      <input type="hidden" name="niche" value={niche} />
+      <input type="hidden" name="tone" value={tone} />
+      <input type="hidden" name="targetDuration" value={selectedDuration} />
+      <input type="hidden" name="specificTopic" value={specificTopic} />
+      <input type="hidden" name="subtopics" value={subtopics} />
+      <input type="hidden" name="creatorInstructions" value={creatorInstructions} />
 
       {/* Stepper Navigation Bar */}
       <div className="bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 flex items-center justify-between">
@@ -217,7 +235,7 @@ export default function CreateProjectForm() {
             <button
               type="button"
               key={step.id}
-              onClick={() => setCurrentStep(step.id)}
+              onClick={() => handleStepClick(step.id)}
               className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                 isActive
                   ? "bg-white text-blue-600 shadow-xs border border-slate-200/60"
@@ -326,17 +344,26 @@ export default function CreateProjectForm() {
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5">
-                  2. Project Working Title
+                  2. Project Working Title <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
-                  name="title"
                   value={title}
-                  onChange={(e) => setTitle(e.target.value)}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    if (e.target.value.trim()) setTitleError(false);
+                  }}
                   placeholder="e.g., The 1815 Eruption That Changed Global Climate"
-                  className="w-full p-3.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-400 bg-white shadow-xs"
+                  className={`w-full p-3.5 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-400 bg-white shadow-xs transition-colors ${
+                    titleError ? "border-red-500 ring-2 ring-red-100" : "border-slate-300"
+                  }`}
                   required
                 />
+                {titleError && (
+                  <p className="text-xs text-red-600 font-medium mt-1.5 flex items-center gap-1">
+                    <span>⚠️</span> Project title is required before continuing.
+                  </p>
+                )}
               </div>
 
               <div>
@@ -356,7 +383,6 @@ export default function CreateProjectForm() {
 
                 <input
                   type="text"
-                  name="specificTopic"
                   value={specificTopic}
                   onChange={(e) => setSpecificTopic(e.target.value)}
                   placeholder='e.g., "The Year Without a Summer (1816)", "The Wow! Signal Mystery"'
@@ -445,7 +471,14 @@ export default function CreateProjectForm() {
             <div className="flex justify-end pt-2">
               <button
                 type="button"
-                onClick={() => setCurrentStep(2)}
+                onClick={() => {
+                  if (!title.trim()) {
+                    setTitleError(true);
+                    return;
+                  }
+                  setTitleError(false);
+                  setCurrentStep(2);
+                }}
                 className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-xl transition-all shadow-sm hover:shadow-md cursor-pointer"
               >
                 Next: Story & Research <ArrowRight size={16} />
@@ -470,7 +503,6 @@ export default function CreateProjectForm() {
                   Content Niche
                 </label>
                 <select
-                  name="niche"
                   value={niche}
                   onChange={(e) => setNiche(e.target.value)}
                   className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 bg-white shadow-xs font-medium"
@@ -488,7 +520,6 @@ export default function CreateProjectForm() {
                   Narration Tone
                 </label>
                 <select
-                  name="tone"
                   value={tone}
                   onChange={(e) => setTone(e.target.value)}
                   className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 bg-white shadow-xs font-medium"
@@ -506,7 +537,6 @@ export default function CreateProjectForm() {
                   Target Duration
                 </label>
                 <select
-                  name="targetDuration"
                   value={selectedDuration}
                   onChange={(e) => setSelectedDuration(e.target.value)}
                   className="w-full p-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 bg-white shadow-xs font-medium"
@@ -526,7 +556,6 @@ export default function CreateProjectForm() {
                 Subtopics & Chapters to Research <span className="text-slate-400 font-normal">(Optional)</span>
               </label>
               <textarea
-                name="subtopics"
                 rows={3}
                 value={subtopics}
                 onChange={(e) => setSubtopics(e.target.value)}
@@ -675,8 +704,9 @@ export default function CreateProjectForm() {
                 Director Notes & Pacing Instructions <span className="text-slate-400 font-normal">(Optional)</span>
               </label>
               <textarea
-                name="creatorInstructions"
                 rows={2}
+                value={creatorInstructions}
+                onChange={(e) => setCreatorInstructions(e.target.value)}
                 placeholder={`e.g.,\n"Maintain an ominous, investigative tone like Vox or Lemmino"\n"Do not use generic clickbait claims"`}
                 className="w-full p-3.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-slate-900 placeholder:text-slate-400 bg-white shadow-xs resize-y"
               />

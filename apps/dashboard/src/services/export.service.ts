@@ -89,10 +89,19 @@ export async function triggerExport(
       data: { status: "FAILED", errorMessage: "Superseded by new export job" },
     });
 
+    const projectCheck = await prisma.project.findUnique({
+      where: { id: projectId },
+      include: { script: { include: { scenes: { select: { id: true } } } } },
+    });
+    const totalScenes = projectCheck?.script?.scenes.length || 0;
+
     const exportJob = await prisma.exportJob.create({
       data: {
         projectId,
         status: "PROCESSING",
+        progress: 0,
+        currentScene: 0,
+        totalScenes,
         resolution: "1080x1920",
         format: "mp4",
         startedAt: new Date(),
@@ -144,6 +153,9 @@ export async function triggerExport(
       data: {
         projectId,
         status: "PROCESSING",
+        progress: 0,
+        currentScene: 0,
+        totalScenes: 0,
         resolution: "1080x1920",
         format: "mp4",
         startedAt: new Date(),
@@ -186,6 +198,13 @@ export async function triggerExport(
     const resolution = isLandscape ? "1920x1080" : "1080x1920";
 
     const scenes = project.script.scenes;
+    const totalScenes = scenes.length;
+
+    // Record accurate totalScenes in DB
+    await prisma.exportJob.update({
+      where: { id: exportJob.id },
+      data: { totalScenes },
+    });
 
     // 3. Prepare export directory
     const exportsDir = getExportsDir(projectId);
@@ -193,6 +212,30 @@ export async function triggerExport(
 
     // 4. Compose each scene sequentially with streaming memory release
     for (const scene of scenes) {
+      // Periodic cancellation check before starting scene processing
+      const currentJob = await prisma.exportJob.findUnique({
+        where: { id: exportJob.id },
+        select: { status: true },
+      });
+      if (currentJob?.status === "CANCELLED") {
+        console.log(`[ExportService] Job ${exportJob.id} cancelled by user. Halting pipeline.`);
+        for (const sp of scenePaths) {
+          try { fs.unlinkSync(sp); } catch {}
+        }
+        return { success: false, error: "Export cancelled by user." };
+      }
+
+      // Live progress calculation: scenes cover 0% -> 85%
+      const sceneProgress = Math.max(1, Math.round((scene.sceneIndex / totalScenes) * 85));
+      await prisma.exportJob.update({
+        where: { id: exportJob.id },
+        data: {
+          progress: sceneProgress,
+          currentScene: scene.sceneIndex + 1,
+          totalScenes,
+        },
+      });
+
       if (!scene.voiceover) {
         throw new Error(
           `Scene ${scene.sceneIndex + 1} is missing voiceover audio. Generate voiceovers first.`
@@ -231,7 +274,7 @@ export async function triggerExport(
 
       const sceneOutputPath = path.join(exportsDir, `scene-${scene.sceneIndex}.mp4`);
 
-      console.log(`[ExportService] Composing scene ${scene.sceneIndex + 1}/${scenes.length}...`);
+      console.log(`[ExportService] Composing scene ${scene.sceneIndex + 1}/${totalScenes}...`);
 
       await composeScene({
         assetPaths: resolvedAssetPaths,
@@ -245,6 +288,7 @@ export async function triggerExport(
         audioDuration: scene.voiceover.duration || scene.duration || 5,
         outputPath: sceneOutputPath,
         aspectRatio,
+        jobId: exportJob.id,
       });
 
       scenePaths.push(sceneOutputPath);
@@ -271,6 +315,28 @@ export async function triggerExport(
       }
     }
 
+    // Cancellation check before concatenation
+    const jobBeforeConcat = await prisma.exportJob.findUnique({
+      where: { id: exportJob.id },
+      select: { status: true },
+    });
+    if (jobBeforeConcat?.status === "CANCELLED") {
+      for (const sp of scenePaths) {
+        try { fs.unlinkSync(sp); } catch {}
+      }
+      return { success: false, error: "Export cancelled by user." };
+    }
+
+    // Update progress: 88% Concatenating & audio mixing
+    await prisma.exportJob.update({
+      where: { id: exportJob.id },
+      data: {
+        progress: 88,
+        currentScene: totalScenes,
+        totalScenes,
+      },
+    });
+
     // 6. Calculate total duration
     const totalDuration = scenes.reduce(
       (sum, s) => sum + (s.voiceover?.duration || s.duration || 0),
@@ -280,9 +346,15 @@ export async function triggerExport(
     // 7. Concatenate all scenes into final video with background music
     const bgmPath = getBgmFilePath(project.bgmTrack);
     const finalOutputPath = path.join(exportsDir, "final.mp4");
-    await concatenateScenes(scenePaths, finalOutputPath, bgmPath, totalDuration);
+    await concatenateScenes(scenePaths, finalOutputPath, bgmPath, totalDuration, exportJob.id);
 
-    // 8. Upload final video to Cloudinary (with fallback to local URL if size exceeds 100MB free limit)
+    // Update progress: 95% Uploading to Cloudinary
+    await prisma.exportJob.update({
+      where: { id: exportJob.id },
+      data: { progress: 95 },
+    });
+
+    // 8. Upload final video to Cloudinary (with fallback to local URL if size exceeds limit)
     let outputUrl = `/pipeline/${projectId}/exports/final.mp4`;
     try {
       const uploaded = await uploadVideoToCloudinary(finalOutputPath, projectId);
@@ -290,14 +362,17 @@ export async function triggerExport(
         outputUrl = uploaded.secure_url;
       }
     } catch (uploadErr) {
-      console.warn(`[ExportService] Cloudinary video upload encountered an issue (e.g. file size limit), using local export URL:`, uploadErr);
+      console.warn(`[ExportService] Cloudinary video upload encountered an issue, using local export URL:`, uploadErr);
     }
 
-    // 9. Update ExportJob
+    // 9. Update ExportJob as COMPLETED
     const completedJob = await prisma.exportJob.update({
       where: { id: exportJob.id },
       data: {
         status: "COMPLETED",
+        progress: 100,
+        currentScene: totalScenes,
+        totalScenes,
         outputUrl,
         localPath: finalOutputPath,
         resolution,
@@ -316,19 +391,25 @@ export async function triggerExport(
   } catch (error) {
     console.error("Export error:", error);
 
-    // Update export job as failed
-    await prisma.exportJob.update({
+    const checkFinalStatus = await prisma.exportJob.findUnique({
       where: { id: exportJob.id },
-      data: {
-        status: "FAILED",
-        errorMessage: error instanceof Error ? error.message : "Export failed",
-      },
+      select: { status: true },
     });
 
-    await prisma.project.update({
-      where: { id: projectId },
-      data: { status: "FAILED" },
-    });
+    if (checkFinalStatus?.status !== "CANCELLED") {
+      await prisma.exportJob.update({
+        where: { id: exportJob.id },
+        data: {
+          status: "FAILED",
+          errorMessage: error instanceof Error ? error.message : "Export failed",
+        },
+      });
+
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { status: "FAILED" },
+      });
+    }
 
     return {
       success: false,

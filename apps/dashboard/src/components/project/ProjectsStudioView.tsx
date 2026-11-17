@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Plus, Video, Sparkles, Search, Filter, Smartphone, MonitorPlay, Layers } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Project } from "@prisma/client";
@@ -15,6 +15,14 @@ export default function ProjectsStudioView({ initialProjects }: ProjectsStudioVi
   const [isCreating, setIsCreating] = useState(initialProjects.length === 0);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterFormat, setFilterFormat] = useState<"ALL" | "SHORTS" | "LONG_FORM">("ALL");
+
+  // Silently pre-warm the Render worker backend as soon as user enters the studio
+  useEffect(() => {
+    const workerUrl = process.env.NEXT_PUBLIC_RENDER_WORKER_URL;
+    if (workerUrl) {
+      fetch(`${workerUrl}/api/health`, { mode: "no-cors" }).catch(() => {});
+    }
+  }, []);
 
   const filteredProjects = initialProjects.filter((p) => {
     const matchesSearch =

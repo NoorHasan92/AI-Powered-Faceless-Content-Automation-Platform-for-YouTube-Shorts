@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: shortforge-render-worker
+    runtime: docker
+    plan: free
+    region: oregon
+    healthCheckPath: /api/health
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: IS_RENDER_WORKER
+        value: "true"
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /tmp/tars-data
+      - key: DATABASE_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PEXELS_API_KEY
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: WORKER_SECRET
+        generateValue: true

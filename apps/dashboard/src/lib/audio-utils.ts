@@ -16,12 +16,22 @@ export function ensureDir(dirPath: string): void {
 
 /**
  * Get the base output directory for pipeline artifacts.
- * Uses `/var/tars-data` for local temporary working files on the server.
+ * Defaults to `/var/tars-data`, or `/tmp/tars-data` if permissions restrict `/var`.
  */
 export function getPipelineDir(): string {
-  const dir = "/var/tars-data";
-  ensureDir(dir);
-  return dir;
+  if (process.env.DATA_DIR) {
+    ensureDir(process.env.DATA_DIR);
+    return process.env.DATA_DIR;
+  }
+  try {
+    const dir = process.platform === "win32" ? "C:\\var\\tars-data" : "/tmp/tars-data";
+    ensureDir(dir);
+    return dir;
+  } catch {
+    const fallbackDir = path.join(process.cwd(), "tmp_data");
+    ensureDir(fallbackDir);
+    return fallbackDir;
+  }
 }
 
 /**

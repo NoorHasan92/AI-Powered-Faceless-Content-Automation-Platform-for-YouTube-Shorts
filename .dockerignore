@@ -1,0 +1,11 @@
+node_modules
+.git
+.github
+.next
+apps/dashboard/.next
+tmp_data
+/var/tars-data
+/tmp/tars-data
+*.log
+.env
+.env.local

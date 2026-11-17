@@ -14,18 +14,91 @@ import fs from "fs";
 import path from "path";
 
 /**
+ * Ensures media file is available locally on disk.
+ * If localPath exists, uses it; otherwise downloads from Cloudinary/HTTP URL.
+ */
+async function ensureLocalFile(urlOrPath: string | null | undefined, destPath: string): Promise<string> {
+  if (urlOrPath && fs.existsSync(urlOrPath)) {
+    return urlOrPath;
+  }
+  if (fs.existsSync(destPath) && fs.statSync(destPath).size > 0) {
+    return destPath;
+  }
+  if (urlOrPath && (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://"))) {
+    fs.mkdirSync(path.dirname(destPath), { recursive: true });
+    const res = await fetch(urlOrPath);
+    if (!res.ok) throw new Error(`Failed to download remote asset from ${urlOrPath}: ${res.statusText}`);
+    const buffer = await res.arrayBuffer();
+    fs.writeFileSync(destPath, Buffer.from(buffer));
+    return destPath;
+  }
+  throw new Error(`Media file not found locally and has no valid download URL: ${urlOrPath}`);
+}
+
+/**
  * Trigger the real video export pipeline for a project.
  *
  * Flow:
- * 1. Gather all scene data (voiceover audio, visual asset, subtitle text)
- * 2. For each scene: compose a clip via FFmpeg (image/video + audio + caption)
- * 3. Concatenate all clips into one final MP4
- * 4. Upload final MP4 to Cloudinary
- * 5. Update ExportJob + Video record
+ * 1. If RENDER_WORKER_URL is set (and not currently running on Render worker), delegate to worker.
+ * 2. Gather all scene data (voiceover audio, visual asset, subtitle text)
+ * 3. Resolve all scene media locally (downloading from Cloudinary if needed)
+ * 4. For each scene: compose a clip via FFmpeg (image/video + audio + caption)
+ * 5. Concatenate all clips into one final MP4 with continuous BGM
+ * 6. Upload final MP4 to Cloudinary
+ * 7. Update ExportJob + Project records
  */
 export async function triggerExport(
   projectId: string
 ): Promise<ServiceResult<ExportJob>> {
+  // Delegate to Render worker if configured on Vercel
+  if (process.env.RENDER_WORKER_URL && !process.env.IS_RENDER_WORKER) {
+    console.log(`[ExportService] Delegating export job to Render worker at ${process.env.RENDER_WORKER_URL}...`);
+
+    const exportJob = await prisma.exportJob.create({
+      data: {
+        projectId,
+        status: "PROCESSING",
+        resolution: "1080x1920",
+        format: "mp4",
+        startedAt: new Date(),
+      },
+    });
+
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { status: "EXPORTING" },
+    });
+
+    try {
+      const res = await fetch(`${process.env.RENDER_WORKER_URL}/api/jobs/export`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(process.env.WORKER_SECRET ? { Authorization: `Bearer ${process.env.WORKER_SECRET}` } : {}),
+        },
+        body: JSON.stringify({ projectId }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Render worker responded with ${res.status}: ${errText}`);
+      }
+
+      return { success: true, data: exportJob };
+    } catch (err: any) {
+      console.error("[ExportService] Failed to delegate export to Render worker:", err);
+      await prisma.exportJob.update({
+        where: { id: exportJob.id },
+        data: { status: "FAILED", errorMessage: err?.message || "Render worker dispatch failed" },
+      });
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { status: "FAILED" },
+      });
+      return { success: false, error: err?.message || "Failed to dispatch to Render worker" };
+    }
+  }
+
   // Create the ExportJob record first so UI can show "PROCESSING"
   const exportJob = await prisma.exportJob.create({
     data: {
@@ -73,28 +146,39 @@ export async function triggerExport(
 
     const scenes = project.script.scenes;
 
-    // 3. Validate that all scenes have required data
+    // 3. Prepare export directory
+    const exportsDir = getExportsDir(projectId);
+    const scenePaths: string[] = [];
+
+    // 4. Validate and resolve all scene media (locally or from Cloudinary)
     for (const scene of scenes) {
-      if (!scene.voiceover?.localPath || !fs.existsSync(scene.voiceover.localPath)) {
+      if (!scene.voiceover) {
         throw new Error(
           `Scene ${scene.sceneIndex + 1} is missing voiceover audio. Generate voiceovers first.`
         );
       }
+      const audioTarget = path.join(exportsDir, `audio-scene-${scene.sceneIndex}.mp3`);
+      scene.voiceover.localPath = await ensureLocalFile(
+        scene.voiceover.localPath || scene.voiceover.audioUrl,
+        audioTarget
+      );
 
-      if (
-        !scene.assets.length ||
-        !scene.assets[0].localPath ||
-        !fs.existsSync(scene.assets[0].localPath)
-      ) {
+      if (!scene.assets.length) {
         throw new Error(
           `Scene ${scene.sceneIndex + 1} is missing visual assets. Generate assets first.`
         );
       }
-    }
 
-    // 4. Prepare export directory
-    const exportsDir = getExportsDir(projectId);
-    const scenePaths: string[] = [];
+      for (let i = 0; i < scene.assets.length; i++) {
+        const asset = scene.assets[i];
+        const ext = asset.type === "STOCK_VIDEO" ? "mp4" : "jpg";
+        const assetTarget = path.join(exportsDir, `asset-scene-${scene.sceneIndex}-${i}.${ext}`);
+        asset.localPath = await ensureLocalFile(
+          asset.localPath || asset.sourceUrl,
+          assetTarget
+        );
+      }
+    }
 
     // 5. Compose each scene
     for (const scene of scenes) {

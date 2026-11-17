@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -68,6 +68,14 @@ export default function ProjectStudioWorkspace({
   const [selectedChapter, setSelectedChapter] = useState<string>("ALL");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [inspectedScene, setInspectedScene] = useState<any | null>(null);
+
+  // Pre-warm the Render worker backend when viewing project workspace
+  useEffect(() => {
+    const workerUrl = process.env.NEXT_PUBLIC_RENDER_WORKER_URL;
+    if (workerUrl) {
+      fetch(`${workerUrl}/api/health`, { mode: "no-cors" }).catch(() => {});
+    }
+  }, []);
 
   const isLongForm = project.videoFormat === "LONG_FORM";
   const scenes = project.script?.scenes || [];
